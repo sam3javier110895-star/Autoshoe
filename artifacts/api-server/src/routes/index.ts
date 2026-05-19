@@ -8,6 +8,7 @@ import contactsRouter from "./contacts.js";
 import messagesRouter from "./messages.js";
 import consultasRouter from "./consultas.js";
 import aiRouter from "./ai.js";
+import flujosRouter from "./flujos.js";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use("/contacts", contactsRouter);
 router.use("/messages", messagesRouter);
 router.use("/consultas", consultasRouter);
 router.use("/ai", aiRouter);
+router.use("/flujos", flujosRouter);
 
 export default router;

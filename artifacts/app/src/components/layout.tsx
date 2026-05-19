@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Smartphone, Users, Zap, Send, Package,
-  Contact, Activity, Brain, LogOut, Menu, X, ChevronRight,
+  Contact, Activity, Brain, LogOut, Menu, X, ChevronRight, GitBranch,
 } from "lucide-react";
 
 const navigation = [
@@ -10,6 +10,7 @@ const navigation = [
   { name: "WhatsApp", href: "/whatsapp", icon: Smartphone, color: "#25D366" },
   { name: "Grupos", href: "/grupos", icon: Users, color: "#3B82F6" },
   { name: "Automatizaciones", href: "/automatizaciones", icon: Zap, color: "#F59E0B" },
+  { name: "Flujos Agente", href: "/flujos", icon: GitBranch, color: "#25D366" },
   { name: "Reenvios", href: "/reenvios", icon: Send, color: "#8B5CF6" },
   { name: "Disponibilidad", href: "/disponibilidad", icon: Package, color: "#14B8A6" },
   { name: "Contactos", href: "/contactos", icon: Contact, color: "#EC4899" },

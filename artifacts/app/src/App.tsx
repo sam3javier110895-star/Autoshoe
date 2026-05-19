@@ -14,6 +14,7 @@ import Disponibilidad from "@/pages/Disponibilidad";
 import Contactos from "@/pages/Contactos";
 import Monitor from "@/pages/Monitor";
 import IA from "@/pages/IA";
+import FlujosAgente from "@/pages/FlujosAgente";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -101,6 +102,13 @@ function Router() {
         <RequireAuth>
           <Layout>
             <IA />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/flujos">
+        <RequireAuth>
+          <Layout>
+            <FlujosAgente />
           </Layout>
         </RequireAuth>
       </Route>
