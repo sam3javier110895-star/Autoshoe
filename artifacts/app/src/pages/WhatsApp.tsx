@@ -182,6 +182,8 @@ function NuevaSesionModal({ onClose }: { onClose: () => void }) {
 export default function WhatsApp() {
   const [showNueva, setShowNueva] = useState(false);
   const [showQR, setShowQR] = useState<any>(null);
+  const [syncing, setSyncing] = useState<number | null>(null);
+  const [syncResult, setSyncResult] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
 
   const { data: sessions, isLoading } = useGetWhatsappSessions({
@@ -200,6 +202,25 @@ export default function WhatsApp() {
   const handleDisconnect = async (id: number) => {
     await fetch(`/api/whatsapp/sessions/${id}/disconnect`, { method: "POST" });
     queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
+  };
+
+  const handleSyncGroups = async (id: number) => {
+    setSyncing(id);
+    setSyncResult((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const r = await fetch(`/api/whatsapp/sessions/${id}/sync-groups`, { method: "POST" });
+      const data = await r.json();
+      if (data.success) {
+        setSyncResult((prev) => ({ ...prev, [id]: `✓ ${data.gruposSincronizados} grupos sincronizados` }));
+        queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["groups"] });
+      }
+    } catch {
+      setSyncResult((prev) => ({ ...prev, [id]: "Error al sincronizar" }));
+    } finally {
+      setSyncing(null);
+      setTimeout(() => setSyncResult((prev) => { const n = { ...prev }; delete n[id]; return n; }), 4000);
+    }
   };
 
   return (
@@ -316,17 +337,37 @@ export default function WhatsApp() {
                     </div>
                   </div>
 
+                  {syncResult[session.id] && (
+                    <div className="mb-3 text-xs px-3 py-2 rounded-lg text-center" style={{ background: "rgba(37,211,102,0.1)", color: "#25D366" }}>
+                      {syncResult[session.id]}
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     {isConectado ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDisconnect(session.id)}
-                        className="flex-1 border-border text-xs"
-                      >
-                        <WifiOff className="w-3 h-3 mr-1.5" />
-                        Desconectar
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSyncGroups(session.id)}
+                          disabled={syncing === session.id}
+                          className="flex-1 text-xs gap-1.5"
+                          style={{ background: "linear-gradient(135deg, #25D366, #128C7E)" }}
+                        >
+                          {syncing === session.id ? (
+                            <><Loader2 className="w-3 h-3 animate-spin" /> Sincronizando...</>
+                          ) : (
+                            <><RefreshCw className="w-3 h-3" /> Sincronizar Grupos</>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDisconnect(session.id)}
+                          className="border-border text-xs"
+                        >
+                          <WifiOff className="w-3 h-3" />
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <Button
