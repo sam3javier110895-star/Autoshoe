@@ -3,20 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Task management with groups and AI assistance
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: groups
+    description: Group operations
+  - name: tasks
+    description: Task operations
+  - name: ai
+    description: AI assistant operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +29,302 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /groups:
+    get:
+      operationId: listGroups
+      tags: [groups]
+      summary: List all groups
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Group"
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+
+  /groups/{id}:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Get a group by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateGroup
+      tags: [groups]
+      summary: Update a group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupUpdate"
+      responses:
+        "200":
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteGroup
+      tags: [groups]
+      summary: Delete a group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /groups/{id}/stats:
+    get:
+      operationId: getGroupStats
+      tags: [groups]
+      summary: Get task stats for a group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupStats"
+
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List tasks, optionally filtered by group
+      parameters:
+        - name: groupId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, in_progress, completed]
+        - name: priority
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [low, medium, high]
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /tasks/{id}:
+    get:
+      operationId: getTask
+      tags: [tasks]
+      summary: Get a task by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /tasks/{id}/complete:
+    patch:
+      operationId: completeTask
+      tags: [tasks]
+      summary: Mark a task as completed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Completed task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [tasks]
+      summary: Get overall dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Chat with AI assistant about tasks in a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatInput"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiChatReply"
+
+  /ai/suggest-tasks:
+    post:
+      operationId: aiSuggestTasks
+      tags: [ai]
+      summary: Ask AI to suggest tasks for a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiSuggestInput"
+      responses:
+        "200":
+          description: AI task suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSuggestResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +335,200 @@ components:
       required:
         - status
 
+    Group:
+      type: object
+      required: [id, name, color, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        color:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    GroupInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        color:
+          type: string
+
+    GroupUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        color:
+          type: string
+
+    GroupStats:
+      type: object
+      required: [groupId, total, pending, inProgress, completed]
+      properties:
+        groupId:
+          type: integer
+        total:
+          type: integer
+        pending:
+          type: integer
+        inProgress:
+          type: integer
+        completed:
+          type: integer
+
+    Task:
+      type: object
+      required: [id, title, status, priority, groupId, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        groupId:
+          type: integer
+        dueDate:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TaskInput:
+      type: object
+      required: [title, groupId]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high]
+        groupId:
+          type: integer
+        dueDate:
+          type: string
+          format: date-time
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        groupId:
+          type: integer
+        dueDate:
+          type: string
+          format: date-time
+
+    DashboardSummary:
+      type: object
+      required: [totalGroups, totalTasks, completedTasks, pendingTasks, inProgressTasks, completionRate]
+      properties:
+        totalGroups:
+          type: integer
+        totalTasks:
+          type: integer
+        completedTasks:
+          type: integer
+        pendingTasks:
+          type: integer
+        inProgressTasks:
+          type: integer
+        completionRate:
+          type: number
+
+    AiChatInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+        groupId:
+          type: ["integer", "null"]
+        conversationHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+
+    AiChatReply:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    AiSuggestInput:
+      type: object
+      required: [groupId]
+      properties:
+        groupId:
+          type: integer
+        context:
+          type: string
+
+    AiSuggestResponse:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            type: object
+            required: [title, priority]
+            properties:
+              title:
+                type: string
+              description:
+                type: string
+              priority:
+                type: string
+                enum: [low, medium, high]
