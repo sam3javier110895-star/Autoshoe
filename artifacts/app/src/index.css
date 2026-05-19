@@ -60,109 +60,61 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ShoeFlow Manager — Dark WhatsApp Theme */
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(255,255,255, .08);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .03);
+  --elevate-2: rgba(255,255,255, .07);
 
-  --opaque-button-border-intensity: -8;
+  /* Dark background inspired by WhatsApp dark mode */
+  --background: 210 14% 8%;
+  --foreground: 210 20% 93%;
 
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
+  --border: 210 12% 14%;
 
-  --background: 220 20% 97%;
-  --foreground: 222 47% 11%;
-  
-  --border: 214 32% 91%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --card: 210 14% 10%;
+  --card-foreground: 210 20% 93%;
+  --card-border: 210 12% 14%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
+  --popover: 210 14% 8%;
+  --popover-foreground: 210 20% 93%;
+  --popover-border: 210 12% 14%;
 
-  --primary: 189 94% 43%;
+  /* WhatsApp green as primary */
+  --primary: 142 70% 45%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 210 12% 14%;
+  --secondary-foreground: 210 20% 93%;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  --muted: 210 12% 14%;
+  --muted-foreground: 210 10% 50%;
 
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --accent: 210 12% 16%;
+  --accent-foreground: 210 20% 93%;
 
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 100%;
 
-  --input: 214.3 31.8% 91.4%;
-  --ring: 189 94% 43%;
-  
-  --sidebar: 222 47% 11%;
-  --sidebar-foreground: 0 0% 100%;
-  --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 189 94% 43%;
+  --input: 210 12% 14%;
+  --ring: 142 70% 45%;
+
+  /* Sidebar — deeper dark */
+  --sidebar: 210 15% 6%;
+  --sidebar-foreground: 210 20% 90%;
+  --sidebar-border: 210 12% 12%;
+  --sidebar-primary: 142 70% 45%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217 33% 17%;
-  --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 189 94% 43%;
+  --sidebar-accent: 210 14% 12%;
+  --sidebar-accent-foreground: 210 20% 90%;
+  --sidebar-ring: 142 70% 45%;
 
-  --radius: 0.3rem;
+  --radius: 0.5rem;
 
   --app-font-sans: 'Inter', system-ui, sans-serif;
-  --app-font-mono: 'Space Mono', monospace;
-}
-
-.dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
-
-  --opaque-button-border-intensity: 9;
-
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
-
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-
-  --border: 217 33% 17%;
-
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 17%;
-
-  --sidebar: 224 71% 4%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 189 94% 43%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217 33% 17%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 189 94% 43%;
-
-  --popover: 224 71% 4%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 17%;
-
-  --primary: 189 94% 43%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 40% 98%;
-
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20.2% 65.1%;
-
-  --accent: 217 33% 17%;
-  --accent-foreground: 210 40% 98%;
-
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-
-  --input: 217 33% 17%;
-  --ring: 189 94% 43%;
+  --app-font-mono: 'Space Mono', 'Fira Code', monospace;
 }
 
 @layer base {
@@ -172,5 +124,22 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.2);
   }
 }

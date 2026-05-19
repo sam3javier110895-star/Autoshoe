@@ -1,27 +1,117 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
-import Dashboard from "@/pages/dashboard";
-import Groups from "@/pages/groups";
-import GroupDetail from "@/pages/groups/detail";
-import Tasks from "@/pages/tasks";
-import NotFound from "@/pages/not-found";
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import WhatsApp from "@/pages/WhatsApp";
+import Grupos from "@/pages/Grupos";
+import Automatizaciones from "@/pages/Automatizaciones";
+import Reenvios from "@/pages/Reenvios";
+import Disponibilidad from "@/pages/Disponibilidad";
+import Contactos from "@/pages/Contactos";
+import Monitor from "@/pages/Monitor";
+import IA from "@/pages/IA";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5000,
+    },
+  },
+});
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!localStorage.getItem("sf_auth")) {
+      navigate("/");
+    }
+  }, [navigate]);
+
+  if (!localStorage.getItem("sf_auth")) return null;
+  return <>{children}</>;
+}
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/groups" component={Groups} />
-        <Route path="/groups/:id" component={GroupDetail} />
-        <Route path="/tasks" component={Tasks} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/" component={Login} />
+      <Route path="/dashboard">
+        <RequireAuth>
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/whatsapp">
+        <RequireAuth>
+          <Layout>
+            <WhatsApp />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/grupos">
+        <RequireAuth>
+          <Layout>
+            <Grupos />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/automatizaciones">
+        <RequireAuth>
+          <Layout>
+            <Automatizaciones />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/reenvios">
+        <RequireAuth>
+          <Layout>
+            <Reenvios />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/disponibilidad">
+        <RequireAuth>
+          <Layout>
+            <Disponibilidad />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/contactos">
+        <RequireAuth>
+          <Layout>
+            <Contactos />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/monitor">
+        <RequireAuth>
+          <Layout>
+            <Monitor />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route path="/ia">
+        <RequireAuth>
+          <Layout>
+            <IA />
+          </Layout>
+        </RequireAuth>
+      </Route>
+      <Route>
+        <RequireAuth>
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </RequireAuth>
+      </Route>
+    </Switch>
   );
 }
 

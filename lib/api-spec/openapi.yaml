@@ -3,19 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: Task management with groups and AI assistance
+  description: ShoeFlow Manager API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: whatsapp
+    description: WhatsApp connection operations
   - name: groups
-    description: Group operations
-  - name: tasks
-    description: Task operations
+    description: WhatsApp groups management
+  - name: automations
+    description: Automation rules
+  - name: contacts
+    description: Contacts and providers
+  - name: messages
+    description: Messages and forwarding
+  - name: dashboard
+    description: Dashboard stats and aggregates
   - name: ai
     description: AI assistant operations
+
 paths:
   /healthz:
     get:
@@ -30,14 +39,142 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get overall dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Get recent activity timeline
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /whatsapp/sessions:
+    get:
+      operationId: getWhatsappSessions
+      tags: [whatsapp]
+      summary: Get all WhatsApp sessions
+      responses:
+        "200":
+          description: Sessions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WhatsappSession"
+    post:
+      operationId: createWhatsappSession
+      tags: [whatsapp]
+      summary: Create a new WhatsApp session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WhatsappSessionInput"
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsappSession"
+
+  /whatsapp/sessions/{id}:
+    get:
+      operationId: getWhatsappSession
+      tags: [whatsapp]
+      summary: Get a WhatsApp session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsappSession"
+    delete:
+      operationId: deleteWhatsappSession
+      tags: [whatsapp]
+      summary: Delete a WhatsApp session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /whatsapp/sessions/{id}/qr:
+    get:
+      operationId: getSessionQr
+      tags: [whatsapp]
+      summary: Get QR code for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: QR data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrCode"
+
   /groups:
     get:
       operationId: listGroups
       tags: [groups]
-      summary: List all groups
+      summary: List all WhatsApp groups
+      parameters:
+        - name: sessionId
+          in: query
+          schema:
+            type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         "200":
-          description: List of groups
+          description: Groups list
           content:
             application/json:
               schema:
@@ -47,7 +184,7 @@ paths:
     post:
       operationId: createGroup
       tags: [groups]
-      summary: Create a group
+      summary: Manually register a group
       requestBody:
         required: true
         content:
@@ -56,7 +193,7 @@ paths:
               $ref: "#/components/schemas/GroupInput"
       responses:
         "201":
-          description: Created
+          description: Group created
           content:
             application/json:
               schema:
@@ -66,7 +203,7 @@ paths:
     get:
       operationId: getGroup
       tags: [groups]
-      summary: Get a group by ID
+      summary: Get a single group
       parameters:
         - name: id
           in: path
@@ -80,12 +217,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Group"
-        "404":
-          description: Not found
     patch:
       operationId: updateGroup
       tags: [groups]
-      summary: Update a group
+      summary: Update group metadata
       parameters:
         - name: id
           in: path
@@ -105,98 +240,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Group"
-        "404":
-          description: Not found
-    delete:
-      operationId: deleteGroup
-      tags: [groups]
-      summary: Delete a group
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-        "404":
-          description: Not found
 
-  /groups/{id}/stats:
+  /groups/stats:
     get:
       operationId: getGroupStats
       tags: [groups]
-      summary: Get task stats for a group
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+      summary: Get groups activity summary
       responses:
         "200":
           description: Group stats
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupStats"
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupStat"
 
-  /tasks:
+  /automations:
     get:
-      operationId: listTasks
-      tags: [tasks]
-      summary: List tasks, optionally filtered by group
-      parameters:
-        - name: groupId
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [pending, in_progress, completed]
-        - name: priority
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [low, medium, high]
+      operationId: listAutomations
+      tags: [automations]
+      summary: List all automations
       responses:
         "200":
-          description: List of tasks
+          description: Automations list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Task"
+                  $ref: "#/components/schemas/Automation"
     post:
-      operationId: createTask
-      tags: [tasks]
-      summary: Create a task
+      operationId: createAutomation
+      tags: [automations]
+      summary: Create a new automation
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TaskInput"
+              $ref: "#/components/schemas/AutomationInput"
       responses:
         "201":
-          description: Created
+          description: Automation created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Task"
+                $ref: "#/components/schemas/Automation"
 
-  /tasks/{id}:
+  /automations/{id}:
     get:
-      operationId: getTask
-      tags: [tasks]
-      summary: Get a task by ID
+      operationId: getAutomation
+      tags: [automations]
+      summary: Get a single automation
       parameters:
         - name: id
           in: path
@@ -205,17 +301,15 @@ paths:
             type: integer
       responses:
         "200":
-          description: Task
+          description: Automation
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Task"
-        "404":
-          description: Not found
+                $ref: "#/components/schemas/Automation"
     patch:
-      operationId: updateTask
-      tags: [tasks]
-      summary: Update a task
+      operationId: updateAutomation
+      tags: [automations]
+      summary: Update an automation
       parameters:
         - name: id
           in: path
@@ -227,20 +321,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TaskUpdate"
+              $ref: "#/components/schemas/AutomationUpdate"
       responses:
         "200":
-          description: Updated task
+          description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Task"
-        "404":
-          description: Not found
+                $ref: "#/components/schemas/Automation"
     delete:
-      operationId: deleteTask
-      tags: [tasks]
-      summary: Delete a task
+      operationId: deleteAutomation
+      tags: [automations]
+      summary: Delete an automation
       parameters:
         - name: id
           in: path
@@ -248,16 +340,18 @@ paths:
           schema:
             type: integer
       responses:
-        "204":
+        "200":
           description: Deleted
-        "404":
-          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
 
-  /tasks/{id}/complete:
-    patch:
-      operationId: completeTask
-      tags: [tasks]
-      summary: Mark a task as completed
+  /automations/{id}/toggle:
+    post:
+      operationId: toggleAutomation
+      tags: [automations]
+      summary: Toggle automation active state
       parameters:
         - name: id
           in: path
@@ -266,32 +360,162 @@ paths:
             type: integer
       responses:
         "200":
-          description: Completed task
+          description: Toggled
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Task"
-        "404":
-          description: Not found
+                $ref: "#/components/schemas/Automation"
 
-  /dashboard/summary:
+  /contacts:
     get:
-      operationId: getDashboardSummary
-      tags: [tasks]
-      summary: Get overall dashboard summary stats
+      operationId: listContacts
+      tags: [contacts]
+      summary: List contacts and providers
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [contact, provider]
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         "200":
-          description: Dashboard summary
+          description: Contacts list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardSummary"
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Create a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    patch:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /messages/forwarded:
+    get:
+      operationId: listForwardedMessages
+      tags: [messages]
+      summary: List forwarded messages
+      responses:
+        "200":
+          description: Messages list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ForwardedMessage"
+    post:
+      operationId: forwardMessage
+      tags: [messages]
+      summary: Forward a message to groups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForwardInput"
+      responses:
+        "201":
+          description: Forwarding queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForwardedMessage"
+
+  /messages/responses:
+    get:
+      operationId: listResponses
+      tags: [messages]
+      summary: List detected responses and availability
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [disponible, agotado, pendiente, confirmado]
+      responses:
+        "200":
+          description: Responses list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShoeResponse"
+
+  /messages/responses/{id}:
+    patch:
+      operationId: updateResponse
+      tags: [messages]
+      summary: Update a response status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResponseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoeResponse"
 
   /ai/chat:
     post:
       operationId: aiChat
       tags: [ai]
-      summary: Chat with AI assistant about tasks in a group
+      summary: Chat with AI assistant about WhatsApp automations
       requestBody:
         required: true
         content:
@@ -306,25 +530,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/AiChatReply"
 
-  /ai/suggest-tasks:
-    post:
-      operationId: aiSuggestTasks
-      tags: [ai]
-      summary: Ask AI to suggest tasks for a group
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AiSuggestInput"
-      responses:
-        "200":
-          description: AI task suggestions
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AiSuggestResponse"
-
 components:
   schemas:
     HealthStatus:
@@ -332,148 +537,452 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
-    Group:
+    SuccessResponse:
       type: object
-      required: [id, name, color, createdAt]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    DashboardStats:
+      type: object
+      properties:
+        whatsappsConectados:
+          type: integer
+        gruposSincronizados:
+          type: integer
+        mensajesReenviadosHoy:
+          type: integer
+        automatizacionesActivas:
+          type: integer
+        proveedoresDetectados:
+          type: integer
+        respuestasHoy:
+          type: integer
+        mensajesHoy:
+          type: array
+          items:
+            $ref: "#/components/schemas/HourlyCount"
+      required:
+        - whatsappsConectados
+        - gruposSincronizados
+        - mensajesReenviadosHoy
+        - automatizacionesActivas
+        - proveedoresDetectados
+        - respuestasHoy
+        - mensajesHoy
+
+    HourlyCount:
+      type: object
+      properties:
+        hour:
+          type: string
+        count:
+          type: integer
+      required: [hour, count]
+
+    ActivityItem:
+      type: object
       properties:
         id:
           type: integer
-        name:
+        tipo:
           type: string
-        description:
+        descripcion:
+          type: string
+        grupoOrigen:
           type: ["string", "null"]
-        color:
+        grupoDestino:
+          type: ["string", "null"]
+        proveedor:
+          type: ["string", "null"]
+        referencia:
+          type: ["string", "null"]
+        timestamp:
           type: string
-        createdAt:
+      required: [id, tipo, descripcion, timestamp]
+
+    WhatsappSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
           type: string
-          format: date-time
-        updatedAt:
+        numero:
+          type: ["string", "null"]
+        avatar:
+          type: ["string", "null"]
+        estado:
           type: string
-          format: date-time
+          enum: [conectado, sincronizando, desconectado, reconectando]
+        gruposSincronizados:
+          type: integer
+        creadoEn:
+          type: string
+        ultimaConexion:
+          type: ["string", "null"]
+      required: [id, nombre, estado, gruposSincronizados, creadoEn]
+
+    WhatsappSessionInput:
+      type: object
+      properties:
+        nombre:
+          type: string
+      required: [nombre]
+
+    QrCode:
+      type: object
+      properties:
+        qrData:
+          type: ["string", "null"]
+        status:
+          type: string
+        expiraEn:
+          type: integer
+      required: [status]
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        jid:
+          type: ["string", "null"]
+        nombre:
+          type: string
+        descripcion:
+          type: ["string", "null"]
+        foto:
+          type: ["string", "null"]
+        categoria:
+          type: ["string", "null"]
+        participantes:
+          type: integer
+        mensajesDiarios:
+          type: integer
+        ultimaActividad:
+          type: ["string", "null"]
+        activo:
+          type: boolean
+        creadoEn:
+          type: string
+      required: [id, sessionId, nombre, participantes, mensajesDiarios, activo, creadoEn]
 
     GroupInput:
       type: object
-      required: [name]
       properties:
-        name:
+        sessionId:
+          type: integer
+        nombre:
           type: string
-          minLength: 1
-        description:
+        jid:
           type: string
-        color:
+        categoria:
           type: string
+        participantes:
+          type: integer
+      required: [sessionId, nombre]
 
     GroupUpdate:
       type: object
       properties:
-        name:
+        nombre:
           type: string
-          minLength: 1
-        description:
+        categoria:
           type: string
-        color:
+        descripcion:
           type: string
+        activo:
+          type: boolean
 
-    GroupStats:
+    GroupStat:
       type: object
-      required: [groupId, total, pending, inProgress, completed]
       properties:
         groupId:
           type: integer
-        total:
+        nombre:
+          type: string
+        mensajes:
           type: integer
-        pending:
-          type: integer
-        inProgress:
-          type: integer
-        completed:
-          type: integer
+        categoria:
+          type: ["string", "null"]
+      required: [groupId, nombre, mensajes]
 
-    Task:
+    Automation:
       type: object
-      required: [id, title, status, priority, groupId, createdAt]
       properties:
         id:
           type: integer
-        title:
+        nombre:
           type: string
-        description:
+        descripcion:
           type: ["string", "null"]
-        status:
+        triggerTipo:
           type: string
-          enum: [pending, in_progress, completed]
-        priority:
-          type: string
-          enum: [low, medium, high]
-        groupId:
+          enum: [foto_referencia, respuesta_disponible, precio_proveedor, palabra_clave, primer_proveedor]
+        palabrasClave:
+          type: array
+          items:
+            type: string
+        gruposOrigen:
+          type: array
+          items:
+            type: string
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        ventanaMinutos:
           type: integer
-        dueDate:
+        criterio:
+          type: string
+          enum: [mejor_precio, primer_respuesta, manual]
+        mensajeConsulta:
           type: ["string", "null"]
-          format: date-time
-        createdAt:
+        reenviarAlOrigen:
+          type: boolean
+        accion:
           type: string
-          format: date-time
-        updatedAt:
+          enum: [reenviar, guardar_contacto, notificar, marcar_prioridad]
+        activa:
+          type: boolean
+        ejecuciones:
+          type: integer
+        ultimaEjecucion:
+          type: ["string", "null"]
+        creadaEn:
           type: string
-          format: date-time
+      required:
+        - id
+        - nombre
+        - triggerTipo
+        - palabrasClave
+        - gruposOrigen
+        - gruposDestino
+        - ventanaMinutos
+        - criterio
+        - reenviarAlOrigen
+        - accion
+        - activa
+        - ejecuciones
+        - creadaEn
 
-    TaskInput:
+    AutomationInput:
       type: object
-      required: [title, groupId]
       properties:
-        title:
+        nombre:
           type: string
-          minLength: 1
-        description:
+        descripcion:
           type: string
-        priority:
+        triggerTipo:
           type: string
-          enum: [low, medium, high]
-        groupId:
+          enum: [foto_referencia, respuesta_disponible, precio_proveedor, palabra_clave, primer_proveedor]
+        palabrasClave:
+          type: array
+          items:
+            type: string
+        gruposOrigen:
+          type: array
+          items:
+            type: string
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        accion:
+          type: string
+          enum: [reenviar, guardar_contacto, notificar, marcar_prioridad]
+        ventanaMinutos:
           type: integer
-        dueDate:
+        criterio:
           type: string
-          format: date-time
+          enum: [mejor_precio, primer_respuesta, manual]
+        mensajeConsulta:
+          type: string
+        reenviarAlOrigen:
+          type: boolean
+      required: [nombre, triggerTipo, palabrasClave, gruposOrigen, gruposDestino, accion]
 
-    TaskUpdate:
+    AutomationUpdate:
       type: object
       properties:
-        title:
+        nombre:
           type: string
-          minLength: 1
-        description:
+        descripcion:
           type: string
-        status:
+        triggerTipo:
           type: string
-          enum: [pending, in_progress, completed]
-        priority:
+          enum: [foto_referencia, respuesta_disponible, precio_proveedor, palabra_clave, primer_proveedor]
+        palabrasClave:
+          type: array
+          items:
+            type: string
+        gruposOrigen:
+          type: array
+          items:
+            type: string
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        accion:
           type: string
-          enum: [low, medium, high]
-        groupId:
+          enum: [reenviar, guardar_contacto, notificar, marcar_prioridad]
+        activa:
+          type: boolean
+        ventanaMinutos:
           type: integer
-        dueDate:
+        criterio:
           type: string
-          format: date-time
+          enum: [mejor_precio, primer_respuesta, manual]
+        mensajeConsulta:
+          type: string
+        reenviarAlOrigen:
+          type: boolean
 
-    DashboardSummary:
+    Contact:
       type: object
-      required: [totalGroups, totalTasks, completedTasks, pendingTasks, inProgressTasks, completionRate]
       properties:
-        totalGroups:
+        id:
           type: integer
-        totalTasks:
+        nombre:
+          type: string
+        numero:
+          type: string
+        tipo:
+          type: string
+          enum: [contact, provider]
+        grupoOrigen:
+          type: ["string", "null"]
+        clasificacion:
+          type: ["string", "null"]
+          enum: [rapido, confiable, frecuente, null]
+        frecuenciaRespuesta:
           type: integer
-        completedTasks:
+        historial:
           type: integer
-        pendingTasks:
+        activo:
+          type: boolean
+        creadoEn:
+          type: string
+      required: [id, nombre, numero, tipo, frecuenciaRespuesta, historial, activo, creadoEn]
+
+    ContactInput:
+      type: object
+      properties:
+        nombre:
+          type: string
+        numero:
+          type: string
+        tipo:
+          type: string
+          enum: [contact, provider]
+        grupoOrigen:
+          type: string
+        clasificacion:
+          type: string
+          enum: [rapido, confiable, frecuente]
+      required: [nombre, numero, tipo]
+
+    ContactUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+        clasificacion:
+          type: string
+          enum: [rapido, confiable, frecuente]
+        activo:
+          type: boolean
+
+    ForwardedMessage:
+      type: object
+      properties:
+        id:
           type: integer
-        inProgressTasks:
+        contenido:
+          type: string
+        grupoOrigen:
+          type: ["string", "null"]
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        estado:
+          type: string
+          enum: [pendiente, enviando, completado, fallido]
+        progreso:
           type: integer
-        completionRate:
-          type: number
+        timestamp:
+          type: string
+        proveedor:
+          type: ["string", "null"]
+        referencia:
+          type: ["string", "null"]
+      required: [id, contenido, gruposDestino, estado, progreso, timestamp]
+
+    ForwardInput:
+      type: object
+      properties:
+        contenido:
+          type: string
+        grupoOrigenId:
+          type: integer
+        gruposDestinoIds:
+          type: array
+          items:
+            type: integer
+      required: [contenido, gruposDestinoIds]
+
+    ShoeResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        referencia:
+          type: string
+        imagen:
+          type: ["string", "null"]
+        proveedorNombre:
+          type: string
+        proveedorNumero:
+          type: string
+        precio:
+          type: ["string", "null"]
+        grupoOrigen:
+          type: string
+        estado:
+          type: string
+          enum: [disponible, agotado, pendiente, confirmado]
+        timestamp:
+          type: string
+        prioridad:
+          type: boolean
+      required:
+        - id
+        - referencia
+        - proveedorNombre
+        - proveedorNumero
+        - grupoOrigen
+        - estado
+        - timestamp
+        - prioridad
+
+    ResponseUpdate:
+      type: object
+      properties:
+        estado:
+          type: string
+          enum: [disponible, agotado, pendiente, confirmado]
+        prioridad:
+          type: boolean
 
     AiChatInput:
       type: object
@@ -482,8 +991,6 @@ components:
         message:
           type: string
           minLength: 1
-        groupId:
-          type: ["integer", "null"]
         conversationHistory:
           type: array
           items:
@@ -505,30 +1012,3 @@ components:
       properties:
         message:
           type: string
-
-    AiSuggestInput:
-      type: object
-      required: [groupId]
-      properties:
-        groupId:
-          type: integer
-        context:
-          type: string
-
-    AiSuggestResponse:
-      type: object
-      required: [suggestions]
-      properties:
-        suggestions:
-          type: array
-          items:
-            type: object
-            required: [title, priority]
-            properties:
-              title:
-                type: string
-              description:
-                type: string
-              priority:
-                type: string
-                enum: [low, medium, high]

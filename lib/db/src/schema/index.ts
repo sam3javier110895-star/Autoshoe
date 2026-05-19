@@ -1,2 +1,5 @@
+export * from "./whatsapp";
 export * from "./groups";
-export * from "./tasks";
+export * from "./automations";
+export * from "./contacts";
+export * from "./messages";
