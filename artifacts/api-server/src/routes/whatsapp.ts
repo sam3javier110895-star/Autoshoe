@@ -1,7 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { whatsappSessionsTable, groupsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { dbService } from "../lib/dbService";
 
 const router = Router();
 
@@ -23,10 +21,7 @@ export function getSessionStatus(id: number): string {
 
 export async function startSession(sessionId: number): Promise<void> {
   sessionStatusMap.set(sessionId, "sincronizando");
-  await db
-    .update(whatsappSessionsTable)
-    .set({ estado: "sincronizando" })
-    .where(eq(whatsappSessionsTable.id, sessionId));
+  await dbService.whatsappSessions.update(sessionId, { estado: "sincronizando" });
 
   const qr = generateMockQR(sessionId);
   sessionQRMap.set(sessionId, qr);
@@ -40,19 +35,16 @@ export async function stopSession(sessionId: number): Promise<void> {
   sessionStatusMap.set(sessionId, "desconectado");
   const t = sessionTimers.get(sessionId);
   if (t) { clearTimeout(t); sessionTimers.delete(sessionId); }
-  await db
-    .update(whatsappSessionsTable)
-    .set({ estado: "desconectado" })
-    .where(eq(whatsappSessionsTable.id, sessionId));
+  await dbService.whatsappSessions.update(sessionId, { estado: "desconectado" });
 }
 
 router.get("/sessions", async (req, res) => {
   try {
-    const sessions = await db.select().from(whatsappSessionsTable).orderBy(whatsappSessionsTable.id);
-    res.json(sessions.map((s) => ({
+    const sessions = await dbService.whatsappSessions.list();
+    res.json(sessions.map((s: any) => ({
       ...s,
-      creadoEn: s.creadoEn.toISOString(),
-      ultimaConexion: s.ultimaConexion?.toISOString() ?? null,
+      creadoEn: s.creadoEn instanceof Date ? s.creadoEn.toISOString() : new Date(s.creadoEn).toISOString(),
+      ultimaConexion: s.ultimaConexion instanceof Date ? s.ultimaConexion.toISOString() : (s.ultimaConexion ? new Date(s.ultimaConexion).toISOString() : null),
     })));
   } catch (err) {
     req.log.error({ err }, "Error fetching sessions");
@@ -67,14 +59,11 @@ router.post("/sessions", async (req, res) => {
       res.status(400).json({ error: "Nombre requerido" });
       return;
     }
-    const [session] = await db
-      .insert(whatsappSessionsTable)
-      .values({ nombre, estado: "desconectado" })
-      .returning();
+    const session = await dbService.whatsappSessions.create({ nombre, estado: "desconectado" });
     res.status(201).json({
       ...session,
-      creadoEn: session.creadoEn.toISOString(),
-      ultimaConexion: session.ultimaConexion?.toISOString() ?? null,
+      creadoEn: session.creadoEn instanceof Date ? session.creadoEn.toISOString() : new Date(session.creadoEn).toISOString(),
+      ultimaConexion: session.ultimaConexion instanceof Date ? session.ultimaConexion.toISOString() : (session.ultimaConexion ? new Date(session.ultimaConexion).toISOString() : null),
     });
   } catch (err) {
     req.log.error({ err }, "Error creating session");
@@ -84,18 +73,15 @@ router.post("/sessions", async (req, res) => {
 
 router.get("/sessions/:id", async (req, res) => {
   try {
-    const [session] = await db
-      .select()
-      .from(whatsappSessionsTable)
-      .where(eq(whatsappSessionsTable.id, parseInt(req.params.id)));
+    const session = await dbService.whatsappSessions.get(parseInt(req.params.id));
     if (!session) {
       res.status(404).json({ error: "Sesión no encontrada" });
       return;
     }
     res.json({
       ...session,
-      creadoEn: session.creadoEn.toISOString(),
-      ultimaConexion: session.ultimaConexion?.toISOString() ?? null,
+      creadoEn: session.creadoEn instanceof Date ? session.creadoEn.toISOString() : new Date(session.creadoEn).toISOString(),
+      ultimaConexion: session.ultimaConexion instanceof Date ? session.ultimaConexion.toISOString() : (session.ultimaConexion ? new Date(session.ultimaConexion).toISOString() : null),
     });
   } catch (err) {
     req.log.error({ err }, "Error fetching session");
@@ -107,7 +93,7 @@ router.delete("/sessions/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await stopSession(id);
-    await db.delete(whatsappSessionsTable).where(eq(whatsappSessionsTable.id, id));
+    await dbService.whatsappSessions.delete(id);
     res.json({ success: true, message: "Sesión eliminada" });
   } catch (err) {
     req.log.error({ err }, "Error deleting session");
@@ -118,10 +104,7 @@ router.delete("/sessions/:id", async (req, res) => {
 router.post("/sessions/:id/connect", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [session] = await db
-      .select()
-      .from(whatsappSessionsTable)
-      .where(eq(whatsappSessionsTable.id, id));
+    const session = await dbService.whatsappSessions.get(id);
     if (!session) {
       res.status(404).json({ error: "Sesión no encontrada" });
       return;
@@ -166,17 +149,12 @@ router.get("/sessions/:id/qr", async (req, res) => {
 router.post("/sessions/:id/sync-groups", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [session] = await db
-      .select()
-      .from(whatsappSessionsTable)
-      .where(eq(whatsappSessionsTable.id, id));
+    const session = await dbService.whatsappSessions.get(id);
     if (!session) {
       res.status(404).json({ error: "Sesión no encontrada" });
       return;
     }
 
-    // When Baileys is connected this would use sock.groupFetchAllParticipating()
-    // For now seed realistic shoe-business groups so the UI is fully functional
     const mockGroups = [
       { nombre: "Novedades Zapatos", jid: `novedades-${id}@g.us`, categoria: "clientes", participantes: 312, mensajesDiarios: 45 },
       { nombre: "Proveedores Nike", jid: `prov-nike-${id}@g.us`, categoria: "proveedores", participantes: 12, mensajesDiarios: 18 },
@@ -192,32 +170,29 @@ router.post("/sessions/:id/sync-groups", async (req, res) => {
       { nombre: "Grupo Interno Ventas", jid: `ventas-interno-${id}@g.us`, categoria: "clientes", participantes: 5, mensajesDiarios: 15 },
     ];
 
-    // Remove existing groups for this session and re-insert
-    await db.delete(groupsTable).where(eq(groupsTable.sessionId, id));
-
-    const inserted = await db
-      .insert(groupsTable)
-      .values(
-        mockGroups.map((g) => ({
-          sessionId: id,
-          jid: g.jid,
-          nombre: g.nombre,
-          categoria: g.categoria,
-          participantes: g.participantes,
-          mensajesDiarios: g.mensajesDiarios,
-          activo: true,
-          ultimaActividad: new Date(),
-        }))
-      )
-      .returning();
+    const inserted = [];
+    for (const g of mockGroups) {
+      const upserted = await dbService.groups.upsert({
+        sessionId: id,
+        jid: g.jid,
+        nombre: g.nombre,
+        categoria: g.categoria,
+        participantes: g.participantes,
+        mensajesDiarios: g.mensajesDiarios,
+        activo: true,
+        ultimaActividad: new Date(),
+      });
+      inserted.push(upserted);
+    }
 
     // Update session groups count
-    await db
-      .update(whatsappSessionsTable)
-      .set({ gruposSincronizados: inserted.length, estado: "conectado", ultimaConexion: new Date() })
-      .where(eq(whatsappSessionsTable.id, id));
+    await dbService.whatsappSessions.update(id, {
+      gruposSincronizados: inserted.length,
+      estado: "conectado",
+      ultimaConexion: new Date()
+    });
 
-    res.json({ success: true, gruposSincronizados: inserted.length, grupos: inserted.map((g) => g.nombre) });
+    res.json({ success: true, gruposSincronizados: inserted.length, grupos: inserted.map((g: any) => g.nombre) });
   } catch (err) {
     req.log.error({ err }, "Error syncing groups");
     res.status(500).json({ error: "Error interno del servidor" });

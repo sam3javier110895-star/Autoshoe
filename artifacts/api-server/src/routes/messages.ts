@@ -1,26 +1,17 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import {
-  forwardedMessagesTable,
-  shoeResponsesTable,
-  groupsTable,
-} from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { dbService } from "../lib/dbService";
 
 const router = Router();
 
 router.get("/forwarded", async (req, res) => {
   try {
-    const messages = await db
-      .select()
-      .from(forwardedMessagesTable)
-      .orderBy(sql`${forwardedMessagesTable.timestamp} DESC`)
-      .limit(50);
+    let messages = await dbService.messages.list();
+    messages = messages.slice(0, 50);
 
-    res.json(messages.map((m) => ({
+    res.json(messages.map((m: any) => ({
       ...m,
-      gruposDestino: m.gruposDestino as string[],
-      timestamp: m.timestamp.toISOString(),
+      gruposDestino: Array.isArray(m.gruposDestino) ? m.gruposDestino : (typeof m.gruposDestino === 'string' ? JSON.parse(m.gruposDestino) : []),
+      timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : new Date(m.timestamp).toISOString(),
     })));
   } catch (err) {
     req.log.error({ err }, "Error fetching forwarded messages");
@@ -39,37 +30,28 @@ router.post("/forwarded", async (req, res) => {
 
     let grupoOrigenNombre: string | undefined;
     if (grupoOrigenId) {
-      const [g] = await db
-        .select({ nombre: groupsTable.nombre })
-        .from(groupsTable)
-        .where(eq(groupsTable.id, grupoOrigenId));
+      const g = await dbService.groups.get(grupoOrigenId);
       grupoOrigenNombre = g?.nombre;
     }
 
     const destNames: string[] = [];
     for (const gid of gruposDestinoIds) {
-      const [g] = await db
-        .select({ nombre: groupsTable.nombre })
-        .from(groupsTable)
-        .where(eq(groupsTable.id, gid));
+      const g = await dbService.groups.get(gid);
       if (g) destNames.push(g.nombre);
     }
 
-    const [message] = await db
-      .insert(forwardedMessagesTable)
-      .values({
-        contenido,
-        grupoOrigen: grupoOrigenNombre,
-        gruposDestino: destNames,
-        estado: "pendiente",
-        progreso: 0,
-      })
-      .returning();
+    const message = await dbService.messages.create({
+      contenido,
+      grupoOrigen: grupoOrigenNombre,
+      gruposDestino: destNames,
+      estado: "pendiente",
+      progreso: 0,
+    });
 
     res.status(201).json({
       ...message,
-      gruposDestino: message.gruposDestino as string[],
-      timestamp: message.timestamp.toISOString(),
+      gruposDestino: Array.isArray(message.gruposDestino) ? message.gruposDestino : (typeof message.gruposDestino === 'string' ? JSON.parse(message.gruposDestino) : []),
+      timestamp: message.timestamp instanceof Date ? message.timestamp.toISOString() : new Date(message.timestamp).toISOString(),
     });
   } catch (err) {
     req.log.error({ err }, "Error forwarding message");
@@ -80,21 +62,15 @@ router.post("/forwarded", async (req, res) => {
 router.get("/responses", async (req, res) => {
   try {
     const { status } = req.query as Record<string, string>;
+    let responses = await dbService.responses.list();
 
-    const responses = status
-      ? await db
-          .select()
-          .from(shoeResponsesTable)
-          .where(eq(shoeResponsesTable.estado, status as any))
-          .orderBy(sql`${shoeResponsesTable.timestamp} DESC`)
-      : await db
-          .select()
-          .from(shoeResponsesTable)
-          .orderBy(sql`${shoeResponsesTable.timestamp} DESC`);
+    if (status) {
+      responses = responses.filter((r: any) => r.estado === status);
+    }
 
-    res.json(responses.map((r) => ({
+    res.json(responses.map((r: any) => ({
       ...r,
-      timestamp: r.timestamp.toISOString(),
+      timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : new Date(r.timestamp).toISOString(),
     })));
   } catch (err) {
     req.log.error({ err }, "Error fetching responses");
@@ -105,16 +81,19 @@ router.get("/responses", async (req, res) => {
 router.patch("/responses/:id", async (req, res) => {
   try {
     const { estado, prioridad } = req.body;
-    const [updated] = await db
-      .update(shoeResponsesTable)
-      .set({ estado, prioridad })
-      .where(eq(shoeResponsesTable.id, parseInt(req.params.id)))
-      .returning();
+    const data: any = {};
+    if (estado !== undefined) data.estado = estado;
+    if (prioridad !== undefined) data.prioridad = prioridad;
+
+    const updated = await dbService.responses.update(parseInt(req.params.id), data);
     if (!updated) {
       res.status(404).json({ error: "Respuesta no encontrada" });
       return;
     }
-    res.json({ ...updated, timestamp: updated.timestamp.toISOString() });
+    res.json({
+      ...updated,
+      timestamp: updated.timestamp instanceof Date ? updated.timestamp.toISOString() : new Date(updated.timestamp).toISOString()
+    });
   } catch (err) {
     req.log.error({ err }, "Error updating response");
     res.status(500).json({ error: "Error interno del servidor" });

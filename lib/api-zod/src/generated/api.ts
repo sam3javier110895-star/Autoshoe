@@ -374,6 +374,161 @@ export const ToggleAutomationResponse = zod.object({
 
 
 /**
+ * @summary List all agent flows
+ */
+export const ListFlujosResponseItem = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "activo": zod.boolean(),
+  "grupoOrigen": zod.string(),
+  "gruposDestino": zod.array(zod.string()),
+  "imagenesPorLote": zod.number(),
+  "intervaloSegundos": zod.number(),
+  "mensajeConsulta": zod.string(),
+  "preguntaConfirmacion": zod.string(),
+  "palabrasConfirmacion": zod.array(zod.string()),
+  "timeoutConfirmacionMin": zod.number(),
+  "grupoPublicacion": zod.string(),
+  "plantillaPublicacion": zod.string(),
+  "ejecuciones": zod.number(),
+  "ultimaEjecucion": zod.string().nullish(),
+  "creadoEn": zod.string()
+})
+export const ListFlujosResponse = zod.array(ListFlujosResponseItem)
+
+
+/**
+ * @summary Create a new agent flow
+ */
+export const CreateFlujoBody = zod.object({
+  "nombre": zod.string(),
+  "grupoOrigen": zod.string().optional(),
+  "gruposDestino": zod.array(zod.string()).optional(),
+  "imagenesPorLote": zod.number().optional(),
+  "intervaloSegundos": zod.number().optional(),
+  "mensajeConsulta": zod.string().optional(),
+  "preguntaConfirmacion": zod.string().optional(),
+  "palabrasConfirmacion": zod.array(zod.string()).optional(),
+  "timeoutConfirmacionMin": zod.number().optional(),
+  "grupoPublicacion": zod.string().optional(),
+  "plantillaPublicacion": zod.string().optional()
+})
+
+
+/**
+ * @summary Update an agent flow
+ */
+export const UpdateFlujoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateFlujoBody = zod.object({
+  "nombre": zod.string().optional(),
+  "activo": zod.boolean().optional(),
+  "grupoOrigen": zod.string().optional(),
+  "gruposDestino": zod.array(zod.string()).optional(),
+  "imagenesPorLote": zod.number().optional(),
+  "intervaloSegundos": zod.number().optional(),
+  "mensajeConsulta": zod.string().optional(),
+  "preguntaConfirmacion": zod.string().optional(),
+  "palabrasConfirmacion": zod.array(zod.string()).optional(),
+  "timeoutConfirmacionMin": zod.number().optional(),
+  "grupoPublicacion": zod.string().optional(),
+  "plantillaPublicacion": zod.string().optional()
+})
+
+export const UpdateFlujoResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "activo": zod.boolean(),
+  "grupoOrigen": zod.string(),
+  "gruposDestino": zod.array(zod.string()),
+  "imagenesPorLote": zod.number(),
+  "intervaloSegundos": zod.number(),
+  "mensajeConsulta": zod.string(),
+  "preguntaConfirmacion": zod.string(),
+  "palabrasConfirmacion": zod.array(zod.string()),
+  "timeoutConfirmacionMin": zod.number(),
+  "grupoPublicacion": zod.string(),
+  "plantillaPublicacion": zod.string(),
+  "ejecuciones": zod.number(),
+  "ultimaEjecucion": zod.string().nullish(),
+  "creadoEn": zod.string()
+})
+
+
+/**
+ * @summary Delete an agent flow
+ */
+export const DeleteFlujoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteFlujoResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().optional()
+})
+
+
+/**
+ * @summary Simulate an agent flow
+ */
+export const SimularFlujoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SimularFlujoBody = zod.object({
+  "proveedor": zod.string().optional(),
+  "precio": zod.string().optional(),
+  "numero": zod.string().optional()
+})
+
+export const SimularFlujoResponse = zod.object({
+  "exito": zod.boolean(),
+  "logs": zod.array(zod.object({
+  "fase": zod.number(),
+  "tiempo": zod.string(),
+  "mensaje": zod.string(),
+  "tipo": zod.string()
+})),
+  "resultado": zod.object({
+  "proveedor": zod.string(),
+  "numero": zod.string(),
+  "precio": zod.string(),
+  "grupoPublicacion": zod.string(),
+  "mensajeFinal": zod.string()
+})
+})
+
+
+/**
+ * @summary Toggle agent flow active state
+ */
+export const ToggleFlujoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ToggleFlujoResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "activo": zod.boolean(),
+  "grupoOrigen": zod.string(),
+  "gruposDestino": zod.array(zod.string()),
+  "imagenesPorLote": zod.number(),
+  "intervaloSegundos": zod.number(),
+  "mensajeConsulta": zod.string(),
+  "preguntaConfirmacion": zod.string(),
+  "palabrasConfirmacion": zod.array(zod.string()),
+  "timeoutConfirmacionMin": zod.number(),
+  "grupoPublicacion": zod.string(),
+  "plantillaPublicacion": zod.string(),
+  "ejecuciones": zod.number(),
+  "ultimaEjecucion": zod.string().nullish(),
+  "creadoEn": zod.string()
+})
+
+
+/**
  * @summary List contacts and providers
  */
 export const ListContactsQueryParams = zod.object({

@@ -24,6 +24,8 @@ tags:
     description: Dashboard stats and aggregates
   - name: ai
     description: AI assistant operations
+  - name: flujos
+    description: Agent multi-step flows
 
 paths:
   /healthz:
@@ -365,6 +367,124 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Automation"
+
+  /flujos:
+    get:
+      operationId: listFlujos
+      tags: [flujos]
+      summary: List all agent flows
+      responses:
+        "200":
+          description: Flows list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flujo"
+    post:
+      operationId: createFlujo
+      tags: [flujos]
+      summary: Create a new agent flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlujoInput"
+      responses:
+        "201":
+          description: Flow created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flujo"
+
+  /flujos/{id}:
+    patch:
+      operationId: updateFlujo
+      tags: [flujos]
+      summary: Update an agent flow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlujoUpdate"
+      responses:
+        "200":
+          description: Flow updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flujo"
+    delete:
+      operationId: deleteFlujo
+      tags: [flujos]
+      summary: Delete an agent flow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Flow deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /flujos/{id}/simular:
+    post:
+      operationId: simularFlujo
+      tags: [flujos]
+      summary: Simulate an agent flow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlujoSimulacionInput"
+      responses:
+        "200":
+          description: Flow simulation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlujoSimulacionResult"
+
+  /flujos/{id}/toggle:
+    post:
+      operationId: toggleFlujo
+      tags: [flujos]
+      summary: Toggle agent flow active state
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flujo"
 
   /contacts:
     get:
@@ -1012,3 +1132,171 @@ components:
       properties:
         message:
           type: string
+
+    Flujo:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        activo:
+          type: boolean
+        grupoOrigen:
+          type: string
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        imagenesPorLote:
+          type: integer
+        intervaloSegundos:
+          type: integer
+        mensajeConsulta:
+          type: string
+        preguntaConfirmacion:
+          type: string
+        palabrasConfirmacion:
+          type: array
+          items:
+            type: string
+        timeoutConfirmacionMin:
+          type: integer
+        grupoPublicacion:
+          type: string
+        plantillaPublicacion:
+          type: string
+        ejecuciones:
+          type: integer
+        ultimaEjecucion:
+          type: ["string", "null"]
+        creadoEn:
+          type: string
+      required:
+        - id
+        - nombre
+        - activo
+        - grupoOrigen
+        - gruposDestino
+        - imagenesPorLote
+        - intervaloSegundos
+        - mensajeConsulta
+        - preguntaConfirmacion
+        - palabrasConfirmacion
+        - timeoutConfirmacionMin
+        - grupoPublicacion
+        - plantillaPublicacion
+        - ejecuciones
+        - creadoEn
+
+    FlujoInput:
+      type: object
+      properties:
+        nombre:
+          type: string
+        grupoOrigen:
+          type: string
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        imagenesPorLote:
+          type: integer
+        intervaloSegundos:
+          type: integer
+        mensajeConsulta:
+          type: string
+        preguntaConfirmacion:
+          type: string
+        palabrasConfirmacion:
+          type: array
+          items:
+            type: string
+        timeoutConfirmacionMin:
+          type: integer
+        grupoPublicacion:
+          type: string
+        plantillaPublicacion:
+          type: string
+      required:
+        - nombre
+
+    FlujoUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+        activo:
+          type: boolean
+        grupoOrigen:
+          type: string
+        gruposDestino:
+          type: array
+          items:
+            type: string
+        imagenesPorLote:
+          type: integer
+        intervaloSegundos:
+          type: integer
+        mensajeConsulta:
+          type: string
+        preguntaConfirmacion:
+          type: string
+        palabrasConfirmacion:
+          type: array
+          items:
+            type: string
+        timeoutConfirmacionMin:
+          type: integer
+        grupoPublicacion:
+          type: string
+        plantillaPublicacion:
+          type: string
+
+    FlujoSimulacionInput:
+      type: object
+      properties:
+        proveedor:
+          type: string
+        precio:
+          type: string
+        numero:
+          type: string
+
+    FlujoSimulacionResult:
+      type: object
+      properties:
+        exito:
+          type: boolean
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlujoSimulacionLog"
+        resultado:
+          type: object
+          properties:
+            proveedor:
+              type: string
+            numero:
+              type: string
+            precio:
+              type: string
+            grupoPublicacion:
+              type: string
+            mensajeFinal:
+              type: string
+          required: [proveedor, numero, precio, grupoPublicacion, mensajeFinal]
+      required: [exito, logs, resultado]
+
+    FlujoSimulacionLog:
+      type: object
+      properties:
+        fase:
+          type: integer
+        tiempo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+      required: [fase, tiempo, mensaje, tipo]

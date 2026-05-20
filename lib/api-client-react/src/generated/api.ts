@@ -30,6 +30,11 @@ import type {
   ContactInput,
   ContactUpdate,
   DashboardStats,
+  Flujo,
+  FlujoInput,
+  FlujoSimulacionInput,
+  FlujoSimulacionResult,
+  FlujoUpdate,
   ForwardInput,
   ForwardedMessage,
   Group,
@@ -1479,6 +1484,438 @@ export const useToggleAutomation = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getToggleAutomationMutationOptions(options));
+    }
+
+export const getListFlujosUrl = () => {
+
+
+
+
+  return `/api/flujos`
+}
+
+/**
+ * @summary List all agent flows
+ */
+export const listFlujos = async ( options?: RequestInit): Promise<Flujo[]> => {
+
+  return customFetch<Flujo[]>(getListFlujosUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFlujosQueryKey = () => {
+    return [
+    `/api/flujos`
+    ] as const;
+    }
+
+
+export const getListFlujosQueryOptions = <TData = Awaited<ReturnType<typeof listFlujos>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFlujos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFlujosQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFlujos>>> = ({ signal }) => listFlujos({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFlujos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFlujosQueryResult = NonNullable<Awaited<ReturnType<typeof listFlujos>>>
+export type ListFlujosQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all agent flows
+ */
+
+export function useListFlujos<TData = Awaited<ReturnType<typeof listFlujos>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFlujos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFlujosQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateFlujoUrl = () => {
+
+
+
+
+  return `/api/flujos`
+}
+
+/**
+ * @summary Create a new agent flow
+ */
+export const createFlujo = async (flujoInput: FlujoInput, options?: RequestInit): Promise<Flujo> => {
+
+  return customFetch<Flujo>(getCreateFlujoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      flujoInput,)
+  }
+);}
+
+
+
+
+export const getCreateFlujoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFlujo>>, TError,{data: BodyType<FlujoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFlujo>>, TError,{data: BodyType<FlujoInput>}, TContext> => {
+
+const mutationKey = ['createFlujo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFlujo>>, {data: BodyType<FlujoInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFlujo(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFlujoMutationResult = NonNullable<Awaited<ReturnType<typeof createFlujo>>>
+    export type CreateFlujoMutationBody = BodyType<FlujoInput>
+    export type CreateFlujoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new agent flow
+ */
+export const useCreateFlujo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFlujo>>, TError,{data: BodyType<FlujoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFlujo>>,
+        TError,
+        {data: BodyType<FlujoInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFlujoMutationOptions(options));
+    }
+
+export const getUpdateFlujoUrl = (id: number,) => {
+
+
+
+
+  return `/api/flujos/${id}`
+}
+
+/**
+ * @summary Update an agent flow
+ */
+export const updateFlujo = async (id: number,
+    flujoUpdate: FlujoUpdate, options?: RequestInit): Promise<Flujo> => {
+
+  return customFetch<Flujo>(getUpdateFlujoUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      flujoUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateFlujoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFlujo>>, TError,{id: number;data: BodyType<FlujoUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFlujo>>, TError,{id: number;data: BodyType<FlujoUpdate>}, TContext> => {
+
+const mutationKey = ['updateFlujo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFlujo>>, {id: number;data: BodyType<FlujoUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateFlujo(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFlujoMutationResult = NonNullable<Awaited<ReturnType<typeof updateFlujo>>>
+    export type UpdateFlujoMutationBody = BodyType<FlujoUpdate>
+    export type UpdateFlujoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update an agent flow
+ */
+export const useUpdateFlujo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFlujo>>, TError,{id: number;data: BodyType<FlujoUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFlujo>>,
+        TError,
+        {id: number;data: BodyType<FlujoUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateFlujoMutationOptions(options));
+    }
+
+export const getDeleteFlujoUrl = (id: number,) => {
+
+
+
+
+  return `/api/flujos/${id}`
+}
+
+/**
+ * @summary Delete an agent flow
+ */
+export const deleteFlujo = async (id: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeleteFlujoUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteFlujoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFlujo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteFlujo>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteFlujo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteFlujo>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteFlujo(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteFlujoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteFlujo>>>
+
+    export type DeleteFlujoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete an agent flow
+ */
+export const useDeleteFlujo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFlujo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteFlujo>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteFlujoMutationOptions(options));
+    }
+
+export const getSimularFlujoUrl = (id: number,) => {
+
+
+
+
+  return `/api/flujos/${id}/simular`
+}
+
+/**
+ * @summary Simulate an agent flow
+ */
+export const simularFlujo = async (id: number,
+    flujoSimulacionInput: FlujoSimulacionInput, options?: RequestInit): Promise<FlujoSimulacionResult> => {
+
+  return customFetch<FlujoSimulacionResult>(getSimularFlujoUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      flujoSimulacionInput,)
+  }
+);}
+
+
+
+
+export const getSimularFlujoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simularFlujo>>, TError,{id: number;data: BodyType<FlujoSimulacionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof simularFlujo>>, TError,{id: number;data: BodyType<FlujoSimulacionInput>}, TContext> => {
+
+const mutationKey = ['simularFlujo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof simularFlujo>>, {id: number;data: BodyType<FlujoSimulacionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  simularFlujo(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SimularFlujoMutationResult = NonNullable<Awaited<ReturnType<typeof simularFlujo>>>
+    export type SimularFlujoMutationBody = BodyType<FlujoSimulacionInput>
+    export type SimularFlujoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Simulate an agent flow
+ */
+export const useSimularFlujo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof simularFlujo>>, TError,{id: number;data: BodyType<FlujoSimulacionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof simularFlujo>>,
+        TError,
+        {id: number;data: BodyType<FlujoSimulacionInput>},
+        TContext
+      > => {
+      return useMutation(getSimularFlujoMutationOptions(options));
+    }
+
+export const getToggleFlujoUrl = (id: number,) => {
+
+
+
+
+  return `/api/flujos/${id}/toggle`
+}
+
+/**
+ * @summary Toggle agent flow active state
+ */
+export const toggleFlujo = async (id: number, options?: RequestInit): Promise<Flujo> => {
+
+  return customFetch<Flujo>(getToggleFlujoUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getToggleFlujoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleFlujo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof toggleFlujo>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['toggleFlujo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof toggleFlujo>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  toggleFlujo(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ToggleFlujoMutationResult = NonNullable<Awaited<ReturnType<typeof toggleFlujo>>>
+
+    export type ToggleFlujoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Toggle agent flow active state
+ */
+export const useToggleFlujo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleFlujo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof toggleFlujo>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getToggleFlujoMutationOptions(options));
     }
 
 export const getListContactsUrl = (params?: ListContactsParams,) => {

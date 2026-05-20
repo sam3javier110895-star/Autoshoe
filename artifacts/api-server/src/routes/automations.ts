@@ -1,24 +1,32 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { automationsTable, insertAutomationSchema } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { dbService } from "../lib/dbService";
 
 const router = Router();
 
-function serializeAutomation(a: typeof automationsTable.$inferSelect) {
+function serializeAutomation(a: any) {
   return {
-    ...a,
-    palabrasClave: a.palabrasClave as string[],
-    gruposOrigen: a.gruposOrigen as string[],
-    gruposDestino: a.gruposDestino as string[],
-    ultimaEjecucion: a.ultimaEjecucion?.toISOString() ?? null,
-    creadaEn: a.creadaEn.toISOString(),
+    id: a.id,
+    nombre: a.nombre,
+    descripcion: a.descripcion,
+    triggerTipo: a.triggerTipo,
+    palabrasClave: Array.isArray(a.palabrasClave) ? a.palabrasClave : (typeof a.palabrasClave === 'string' ? JSON.parse(a.palabrasClave) : []),
+    gruposOrigen: Array.isArray(a.gruposOrigen) ? a.gruposOrigen : (typeof a.gruposOrigen === 'string' ? JSON.parse(a.gruposOrigen) : []),
+    gruposDestino: Array.isArray(a.gruposDestino) ? a.gruposDestino : (typeof a.gruposDestino === 'string' ? JSON.parse(a.gruposDestino) : []),
+    ventanaMinutos: a.ventanaMinutos,
+    criterio: a.criterio,
+    mensajeConsulta: a.mensajeConsulta,
+    reenviarAlOrigen: a.reenviarAlOrigen,
+    accion: a.accion,
+    activa: a.activa,
+    ejecuciones: a.ejecuciones,
+    ultimaEjecucion: a.ultimaEjecucion instanceof Date ? a.ultimaEjecucion.toISOString() : (a.ultimaEjecucion ? new Date(a.ultimaEjecucion).toISOString() : null),
+    creadaEn: a.creadaEn instanceof Date ? a.creadaEn.toISOString() : new Date(a.creadaEn).toISOString(),
   };
 }
 
 router.get("/", async (req, res) => {
   try {
-    const automations = await db.select().from(automationsTable).orderBy(automationsTable.id);
+    const automations = await dbService.automations.list();
     res.json(automations.map(serializeAutomation));
   } catch (err) {
     req.log.error({ err }, "Error fetching automations");
@@ -28,12 +36,33 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const parsed = insertAutomationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Datos inválidos", details: parsed.error.issues });
+    const {
+      nombre, descripcion, triggerTipo, palabrasClave = [],
+      gruposOrigen = [], gruposDestino = [], accion, activa = true,
+      ventanaMinutos = 10, criterio = "mejor_precio", mensajeConsulta = "",
+      reenviarAlOrigen = true
+    } = req.body;
+
+    if (!nombre || !triggerTipo || !accion) {
+      res.status(400).json({ error: "Campos requeridos faltantes" });
       return;
     }
-    const [automation] = await db.insert(automationsTable).values(parsed.data).returning();
+
+    const automation = await dbService.automations.create({
+      nombre,
+      descripcion,
+      triggerTipo,
+      palabrasClave,
+      gruposOrigen,
+      gruposDestino,
+      accion,
+      activa,
+      ventanaMinutos,
+      criterio,
+      mensajeConsulta,
+      reenviarAlOrigen,
+    });
+
     res.status(201).json(serializeAutomation(automation));
   } catch (err) {
     req.log.error({ err }, "Error creating automation");
@@ -43,10 +72,7 @@ router.post("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const [automation] = await db
-      .select()
-      .from(automationsTable)
-      .where(eq(automationsTable.id, parseInt(req.params.id)));
+    const automation = await dbService.automations.get(parseInt(req.params.id));
     if (!automation) {
       res.status(404).json({ error: "Automatización no encontrada" });
       return;
@@ -60,22 +86,28 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
+    const id = parseInt(req.params.id);
     const {
       nombre, descripcion, triggerTipo, palabrasClave,
       gruposOrigen, gruposDestino, accion, activa,
       ventanaMinutos, criterio, mensajeConsulta, reenviarAlOrigen,
     } = req.body;
 
-    const [updated] = await db
-      .update(automationsTable)
-      .set({
-        nombre, descripcion, triggerTipo, palabrasClave,
-        gruposOrigen, gruposDestino, accion, activa,
-        ventanaMinutos, criterio, mensajeConsulta, reenviarAlOrigen,
-      })
-      .where(eq(automationsTable.id, parseInt(req.params.id)))
-      .returning();
+    const data: any = {};
+    if (nombre !== undefined) data.nombre = nombre;
+    if (descripcion !== undefined) data.descripcion = descripcion;
+    if (triggerTipo !== undefined) data.triggerTipo = triggerTipo;
+    if (palabrasClave !== undefined) data.palabrasClave = palabrasClave;
+    if (gruposOrigen !== undefined) data.gruposOrigen = gruposOrigen;
+    if (gruposDestino !== undefined) data.gruposDestino = gruposDestino;
+    if (accion !== undefined) data.accion = accion;
+    if (activa !== undefined) data.activa = activa;
+    if (ventanaMinutos !== undefined) data.ventanaMinutos = ventanaMinutos;
+    if (criterio !== undefined) data.criterio = criterio;
+    if (mensajeConsulta !== undefined) data.mensajeConsulta = mensajeConsulta;
+    if (reenviarAlOrigen !== undefined) data.reenviarAlOrigen = reenviarAlOrigen;
 
+    const updated = await dbService.automations.update(id, data);
     if (!updated) {
       res.status(404).json({ error: "Automatización no encontrada" });
       return;
@@ -89,7 +121,7 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    await db.delete(automationsTable).where(eq(automationsTable.id, parseInt(req.params.id)));
+    await dbService.automations.delete(parseInt(req.params.id));
     res.json({ success: true, message: "Automatización eliminada" });
   } catch (err) {
     req.log.error({ err }, "Error deleting automation");
@@ -100,16 +132,12 @@ router.delete("/:id", async (req, res) => {
 router.post("/:id/toggle", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [automation] = await db.select().from(automationsTable).where(eq(automationsTable.id, id));
+    const automation = await dbService.automations.get(id);
     if (!automation) {
       res.status(404).json({ error: "Automatización no encontrada" });
       return;
     }
-    const [updated] = await db
-      .update(automationsTable)
-      .set({ activa: !automation.activa })
-      .where(eq(automationsTable.id, id))
-      .returning();
+    const updated = await dbService.automations.update(id, { activa: !automation.activa });
     res.json(serializeAutomation(updated));
   } catch (err) {
     req.log.error({ err }, "Error toggling automation");

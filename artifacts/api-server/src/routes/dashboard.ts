@@ -1,51 +1,36 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import {
-  whatsappSessionsTable,
-  groupsTable,
-  automationsTable,
-  contactsTable,
-  forwardedMessagesTable,
-  shoeResponsesTable,
-} from "@workspace/db";
-import { eq, count, sql } from "drizzle-orm";
+import { dbService } from "../lib/dbService";
 
 const router = Router();
 
 router.get("/stats", async (req, res) => {
   try {
-    const [sessions] = await db
-      .select({ count: count() })
-      .from(whatsappSessionsTable)
-      .where(eq(whatsappSessionsTable.estado, "conectado"));
+    const sessions = await dbService.whatsappSessions.list();
+    const whatsappsConectados = sessions.filter((s: any) => s.estado === "conectado").length;
 
-    const [groups] = await db
-      .select({ count: count() })
-      .from(groupsTable)
-      .where(eq(groupsTable.activo, true));
+    const groups = await dbService.groups.list();
+    const gruposSincronizados = groups.filter((g: any) => g.activo).length;
 
-    const [activeAutomations] = await db
-      .select({ count: count() })
-      .from(automationsTable)
-      .where(eq(automationsTable.activa, true));
+    const automations = await dbService.automations.list();
+    const automatizacionesActivas = automations.filter((a: any) => a.activa).length;
 
-    const [providers] = await db
-      .select({ count: count() })
-      .from(contactsTable)
-      .where(eq(contactsTable.tipo, "provider"));
+    const contacts = await dbService.contacts.list();
+    const proveedoresDetectados = contacts.filter((c: any) => c.tipo === "provider").length;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [forwarded] = await db
-      .select({ count: count() })
-      .from(forwardedMessagesTable)
-      .where(sql`${forwardedMessagesTable.timestamp} >= ${today}`);
+    const forwarded = await dbService.messages.list();
+    const mensajesReenviadosHoy = forwarded.filter((m: any) => {
+      const ts = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp);
+      return ts >= today;
+    }).length;
 
-    const [responses] = await db
-      .select({ count: count() })
-      .from(shoeResponsesTable)
-      .where(sql`${shoeResponsesTable.timestamp} >= ${today}`);
+    const responses = await dbService.responses.list();
+    const respuestasHoy = responses.filter((r: any) => {
+      const ts = r.timestamp instanceof Date ? r.timestamp : new Date(r.timestamp);
+      return ts >= today;
+    }).length;
 
     const mensajesHoy = Array.from({ length: 12 }, (_, i) => ({
       hour: `${(8 + i).toString().padStart(2, "0")}:00`,
@@ -53,12 +38,12 @@ router.get("/stats", async (req, res) => {
     }));
 
     res.json({
-      whatsappsConectados: sessions.count,
-      gruposSincronizados: groups.count,
-      mensajesReenviadosHoy: forwarded.count,
-      automatizacionesActivas: activeAutomations.count,
-      proveedoresDetectados: providers.count,
-      respuestasHoy: responses.count,
+      whatsappsConectados,
+      gruposSincronizados,
+      mensajesReenviadosHoy,
+      automatizacionesActivas,
+      proveedoresDetectados,
+      respuestasHoy,
       mensajesHoy,
     });
   } catch (err) {
@@ -69,25 +54,22 @@ router.get("/stats", async (req, res) => {
 
 router.get("/activity", async (req, res) => {
   try {
-    const forwarded = await db
-      .select()
-      .from(forwardedMessagesTable)
-      .orderBy(sql`${forwardedMessagesTable.timestamp} DESC`)
-      .limit(20);
+    let forwarded = await dbService.messages.list();
+    forwarded = forwarded.slice(0, 20);
 
-    const activity = forwarded.map((m) => ({
-      id: m.id,
-      tipo: "reenvio",
-      descripcion: `Mensaje reenviado a ${(m.gruposDestino as string[]).length} grupos`,
-      grupoOrigen: m.grupoOrigen ?? null,
-      grupoDestino:
-        (m.gruposDestino as string[]).length > 0
-          ? (m.gruposDestino as string[])[0]
-          : null,
-      proveedor: m.proveedor ?? null,
-      referencia: m.referencia ?? null,
-      timestamp: m.timestamp.toISOString(),
-    }));
+    const activity = forwarded.map((m: any) => {
+      const dests = Array.isArray(m.gruposDestino) ? m.gruposDestino : (typeof m.gruposDestino === 'string' ? JSON.parse(m.gruposDestino) : []);
+      return {
+        id: m.id,
+        tipo: "reenvio",
+        descripcion: `Mensaje reenviado a ${dests.length} grupos`,
+        grupoOrigen: m.grupoOrigen ?? null,
+        grupoDestino: dests.length > 0 ? dests[0] : null,
+        proveedor: m.proveedor ?? null,
+        referencia: m.referencia ?? null,
+        timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : new Date(m.timestamp).toISOString(),
+      };
+    });
 
     res.json(activity);
   } catch (err) {

@@ -1,40 +1,27 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { consultasActivasTable, respuestasConsultaTable, automationsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { dbService } from "../lib/dbService";
 
 const router = Router();
 
 router.get("/activas", async (req, res) => {
   try {
-    const consultas = await db
-      .select()
-      .from(consultasActivasTable)
-      .where(eq(consultasActivasTable.estado, "activa"))
-      .orderBy(sql`${consultasActivasTable.creadaEn} DESC`);
+    const consultas = await dbService.consultas.listActivas();
 
     const result = await Promise.all(
-      consultas.map(async (c) => {
-        const respuestas = await db
-          .select()
-          .from(respuestasConsultaTable)
-          .where(eq(respuestasConsultaTable.consultaId, c.id));
-
-        const [automation] = await db
-          .select({ nombre: automationsTable.nombre, criterio: automationsTable.criterio })
-          .from(automationsTable)
-          .where(eq(automationsTable.id, c.automationId));
+      consultas.map(async (c: any) => {
+        const respuestas = await dbService.consultas.respuestasForConsulta(c.id);
+        const automation = await dbService.automations.get(c.automationId);
 
         return {
           id: c.id,
           grupoOrigenNombre: c.grupoOrigenNombre,
           automationNombre: automation?.nombre ?? "Automatización",
           criterio: automation?.criterio ?? "mejor_precio",
-          expiraEn: c.expiraEn.toISOString(),
+          expiraEn: c.expiraEn instanceof Date ? c.expiraEn.toISOString() : new Date(c.expiraEn).toISOString(),
           respuestasCount: respuestas.length,
-          respuestasConPrecio: respuestas.filter((r) => r.precioTexto).length,
+          respuestasConPrecio: respuestas.filter((r: any) => r.precioTexto).length,
           estado: c.estado,
-          creadaEn: c.creadaEn.toISOString(),
+          creadaEn: c.creadaEn instanceof Date ? c.creadaEn.toISOString() : new Date(c.creadaEn).toISOString(),
         };
       })
     );

@@ -432,6 +432,82 @@ export interface AiChatReply {
   message: string;
 }
 
+export interface Flujo {
+  id: number;
+  nombre: string;
+  activo: boolean;
+  grupoOrigen: string;
+  gruposDestino: string[];
+  imagenesPorLote: number;
+  intervaloSegundos: number;
+  mensajeConsulta: string;
+  preguntaConfirmacion: string;
+  palabrasConfirmacion: string[];
+  timeoutConfirmacionMin: number;
+  grupoPublicacion: string;
+  plantillaPublicacion: string;
+  ejecuciones: number;
+  /** @nullable */
+  ultimaEjecucion?: string | null;
+  creadoEn: string;
+}
+
+export interface FlujoInput {
+  nombre: string;
+  grupoOrigen?: string;
+  gruposDestino?: string[];
+  imagenesPorLote?: number;
+  intervaloSegundos?: number;
+  mensajeConsulta?: string;
+  preguntaConfirmacion?: string;
+  palabrasConfirmacion?: string[];
+  timeoutConfirmacionMin?: number;
+  grupoPublicacion?: string;
+  plantillaPublicacion?: string;
+}
+
+export interface FlujoUpdate {
+  nombre?: string;
+  activo?: boolean;
+  grupoOrigen?: string;
+  gruposDestino?: string[];
+  imagenesPorLote?: number;
+  intervaloSegundos?: number;
+  mensajeConsulta?: string;
+  preguntaConfirmacion?: string;
+  palabrasConfirmacion?: string[];
+  timeoutConfirmacionMin?: number;
+  grupoPublicacion?: string;
+  plantillaPublicacion?: string;
+}
+
+export interface FlujoSimulacionInput {
+  proveedor?: string;
+  precio?: string;
+  numero?: string;
+}
+
+export type FlujoSimulacionResultResultado = {
+  proveedor: string;
+  numero: string;
+  precio: string;
+  grupoPublicacion: string;
+  mensajeFinal: string;
+};
+
+export interface FlujoSimulacionLog {
+  fase: number;
+  tiempo: string;
+  mensaje: string;
+  tipo: string;
+}
+
+export interface FlujoSimulacionResult {
+  exito: boolean;
+  logs: FlujoSimulacionLog[];
+  resultado: FlujoSimulacionResultResultado;
+}
+
 export type ListGroupsParams = {
 sessionId?: number;
 category?: string;

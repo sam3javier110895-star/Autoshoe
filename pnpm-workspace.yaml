@@ -73,6 +73,9 @@ onlyBuiltDependencies:
   - esbuild
   - msw
   - unrs-resolver
+  - '@whiskeysockets/baileys'
+  - '@firebase/util'
+  - protobufjs
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms

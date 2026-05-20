@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { whatsappManager } from "./lib/whatsappManager";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,9 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  
+  // Initialize active WhatsApp sessions asynchronously
+  whatsappManager.initAllSessions().catch(e => {
+    logger.error({ err: e }, "Failed to initialize active WhatsApp sessions on boot");
+  });
 });

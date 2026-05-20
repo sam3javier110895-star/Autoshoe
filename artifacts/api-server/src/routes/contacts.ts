@@ -1,29 +1,24 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { contactsTable, insertContactSchema } from "@workspace/db";
-import { eq, ilike, and } from "drizzle-orm";
+import { dbService } from "../lib/dbService";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
   try {
     const { type, search } = req.query as Record<string, string>;
-    const conditions = [];
+    let contacts = await dbService.contacts.list();
 
     if (type === "contact" || type === "provider") {
-      conditions.push(eq(contactsTable.tipo, type));
+      contacts = contacts.filter((c: any) => c.tipo === type);
     }
-    if (search) conditions.push(ilike(contactsTable.nombre, `%${search}%`));
+    if (search) {
+      const q = search.toLowerCase();
+      contacts = contacts.filter((c: any) => c.nombre?.toLowerCase().includes(q));
+    }
 
-    const contacts = await db
-      .select()
-      .from(contactsTable)
-      .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(contactsTable.id);
-
-    res.json(contacts.map((c) => ({
+    res.json(contacts.map((c: any) => ({
       ...c,
-      creadoEn: c.creadoEn.toISOString(),
+      creadoEn: c.creadoEn instanceof Date ? c.creadoEn.toISOString() : new Date(c.creadoEn).toISOString(),
     })));
   } catch (err) {
     req.log.error({ err }, "Error fetching contacts");
@@ -33,13 +28,18 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const parsed = insertContactSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Datos inválidos" });
+    const { nombre, numero, tipo, grupoOrigen, clasificacion } = req.body;
+    if (!nombre || !numero || !tipo) {
+      res.status(400).json({ error: "Campos requeridos faltantes" });
       return;
     }
-    const [contact] = await db.insert(contactsTable).values(parsed.data).returning();
-    res.status(201).json({ ...contact, creadoEn: contact.creadoEn.toISOString() });
+    const contact = await dbService.contacts.create({
+      nombre, numero, tipo, grupoOrigen, clasificacion
+    });
+    res.status(201).json({
+      ...contact,
+      creadoEn: contact.creadoEn instanceof Date ? contact.creadoEn.toISOString() : new Date(contact.creadoEn).toISOString()
+    });
   } catch (err) {
     req.log.error({ err }, "Error creating contact");
     res.status(500).json({ error: "Error interno del servidor" });
@@ -48,19 +48,35 @@ router.post("/", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
+    const id = parseInt(req.params.id);
     const { nombre, clasificacion, activo } = req.body;
-    const [updated] = await db
-      .update(contactsTable)
-      .set({ nombre, clasificacion, activo })
-      .where(eq(contactsTable.id, parseInt(req.params.id)))
-      .returning();
+    const data: any = {};
+    if (nombre !== undefined) data.nombre = nombre;
+    if (clasificacion !== undefined) data.clasificacion = clasificacion;
+    if (activo !== undefined) data.activo = activo;
+
+    const updated = await dbService.contacts.update(id, data);
     if (!updated) {
       res.status(404).json({ error: "Contacto no encontrado" });
       return;
     }
-    res.json({ ...updated, creadoEn: updated.creadoEn.toISOString() });
+    res.json({
+      ...updated,
+      creadoEn: updated.creadoEn instanceof Date ? updated.creadoEn.toISOString() : new Date(updated.creadoEn).toISOString()
+    });
   } catch (err) {
     req.log.error({ err }, "Error updating contact");
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await dbService.contacts.delete(id);
+    res.json({ success: true, message: "Contacto eliminado" });
+  } catch (err) {
+    req.log.error({ err }, "Error deleting contact");
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });

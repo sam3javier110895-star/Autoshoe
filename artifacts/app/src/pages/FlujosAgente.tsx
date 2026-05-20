@@ -11,32 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useQuery, useMutation } from "@tanstack/react-query";
-
-const FLUJOS_KEY = ["flujos-agente"];
-
-async function fetchFlujos() {
-  const r = await fetch("/api/flujos");
-  if (!r.ok) throw new Error("Error cargando flujos");
-  return r.json();
-}
-async function createFlujo(data: Record<string, unknown>) {
-  const r = await fetch("/api/flujos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-  if (!r.ok) throw new Error("Error creando flujo");
-  return r.json();
-}
-async function deleteFlujo(id: number) {
-  await fetch(`/api/flujos/${id}`, { method: "DELETE" });
-}
-async function toggleFlujo(id: number, activo: boolean) {
-  const r = await fetch(`/api/flujos/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activo }) });
-  return r.json();
-}
-async function simularFlujo(id: number, params: Record<string, string>) {
-  const r = await fetch(`/api/flujos/${id}/simular`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) });
-  if (!r.ok) throw new Error("Error simulando flujo");
-  return r.json();
-}
+import {
+  useListFlujos,
+  useCreateFlujo,
+  useDeleteFlujo,
+  useToggleFlujo,
+  simularFlujo,
+  getListFlujosQueryKey,
+} from "@workspace/api-client-react";
 
 const faseColors: Record<number, string> = { 1: "#25D366", 2: "#F59E0B", 3: "#3B82F6" };
 const faseIcons = [Send, MessageSquare, Megaphone];
@@ -212,27 +194,30 @@ function NuevoFlujoModal({ onClose }: { onClose: () => void }) {
   const [grupoPublicacion, setGrupoPublicacion] = useState("");
   const [plantilla, setPlantilla] = useState("Proveedor confirmado: {numero} — Precio fijo: {precio}");
 
-  const createMutation = useMutation({
-    mutationFn: createFlujo,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: FLUJOS_KEY });
-      onClose();
-    },
+  const createMutation = useCreateFlujo({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListFlujosQueryKey() });
+        onClose();
+      },
+    }
   });
 
   const handleSubmit = () => {
     createMutation.mutate({
-      nombre,
-      grupoOrigen,
-      gruposDestino: gruposDestino.split(",").map((g) => g.trim()).filter(Boolean),
-      imagenesPorLote,
-      intervaloSegundos,
-      mensajeConsulta,
-      preguntaConfirmacion,
-      palabrasConfirmacion: palabrasConfirmacion.split(",").map((p) => p.trim()).filter(Boolean),
-      timeoutConfirmacionMin: timeoutMin,
-      grupoPublicacion,
-      plantillaPublicacion: plantilla,
+      data: {
+        nombre,
+        grupoOrigen,
+        gruposDestino: gruposDestino.split(",").map((g) => g.trim()).filter(Boolean),
+        imagenesPorLote,
+        intervaloSegundos,
+        mensajeConsulta,
+        preguntaConfirmacion,
+        palabrasConfirmacion: palabrasConfirmacion.split(",").map((p) => p.trim()).filter(Boolean),
+        timeoutConfirmacionMin: timeoutMin,
+        grupoPublicacion,
+        plantillaPublicacion: plantilla,
+      }
     });
   };
 
@@ -401,13 +386,15 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
   const [showSim, setShowSim] = useState(false);
   const queryClient = useQueryClient();
 
-  const toggleMut = useMutation({
-    mutationFn: () => toggleFlujo(flujo.id as number, !(flujo.activo as boolean)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: FLUJOS_KEY }),
+  const toggleMut = useToggleFlujo({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListFlujosQueryKey() }),
+    }
   });
-  const deleteMut = useMutation({
-    mutationFn: () => deleteFlujo(flujo.id as number),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: FLUJOS_KEY }),
+  const deleteMut = useDeleteFlujo({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListFlujosQueryKey() }),
+    }
   });
 
   const destinos = (flujo.gruposDestino as string[]) ?? [];
@@ -445,10 +432,10 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
             <Button size="sm" variant="outline" onClick={() => setShowSim(true)} className="h-7 px-2 border-border gap-1 text-[11px]" style={{ color: "#25D366", borderColor: "rgba(37,211,102,0.3)" }}>
               <Play className="w-3 h-3" /> Probar
             </Button>
-            <button onClick={() => toggleMut.mutate()} disabled={toggleMut.isPending} className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
+            <button onClick={() => toggleMut.mutate({ id: flujo.id as number })} disabled={toggleMut.isPending} className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
               <Power className="w-4 h-4" style={{ color: activo ? "#25D366" : "#64748B" }} />
             </button>
-            <button onClick={() => deleteMut.mutate()} disabled={deleteMut.isPending} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
+            <button onClick={() => deleteMut.mutate({ id: flujo.id as number })} disabled={deleteMut.isPending} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
             <button onClick={() => setExpanded(!expanded)} className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground">
@@ -519,13 +506,13 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
 export default function FlujosAgente() {
   const [showNuevo, setShowNuevo] = useState(false);
 
-  const { data: flujos, isLoading } = useQuery({
-    queryKey: FLUJOS_KEY,
-    queryFn: fetchFlujos,
-    refetchInterval: 20000,
+  const { data: flujos, isLoading } = useListFlujos({
+    query: {
+      refetchInterval: 20000,
+    } as any
   });
 
-  const activos = (flujos as Record<string, unknown>[])?.filter((f) => f.activo).length ?? 0;
+  const activos = (flujos as any[])?.filter((f) => f.activo).length ?? 0;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -586,7 +573,7 @@ export default function FlujosAgente() {
         </div>
       ) : (
         <div className="space-y-3">
-          {(flujos as Record<string, unknown>[]).map((f, i) => <FlujoCard key={f.id as number} flujo={f} index={i} />)}
+          {(flujos as any[]).map((f, i) => <FlujoCard key={f.id as number} flujo={f} index={i} />)}
         </div>
       )}
 
