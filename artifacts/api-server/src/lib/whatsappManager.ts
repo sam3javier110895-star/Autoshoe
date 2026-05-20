@@ -51,11 +51,20 @@ async function useFirestoreAuthState(sessionId: number) {
               try {
                 const doc = await keysRef.doc(docId).get();
                 if (doc.exists) {
-                  let value = JSON.parse(JSON.stringify(doc.data()), BufferJSON.reviver);
-                  if (type === "app-state-sync-key" && value) {
-                    value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                  const docData = doc.data();
+                  if (docData) {
+                    let value: any;
+                    if (typeof docData.data === "string") {
+                      value = JSON.parse(docData.data, BufferJSON.reviver);
+                    } else {
+                      // Backward compatibility for raw objects in existing databases
+                      value = JSON.parse(JSON.stringify(docData), BufferJSON.reviver);
+                    }
+                    if (type === "app-state-sync-key" && value) {
+                      value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                    }
+                    data[id] = value;
                   }
-                  data[id] = value;
                 }
               } catch (e) {
                 logger.error({ err: e, type, id, docId }, "Error getting auth key from Firestore");
@@ -74,8 +83,8 @@ async function useFirestoreAuthState(sessionId: number) {
                 const docId = makeSafeDocId(type, id);
                 const docRef = keysRef.doc(docId);
                 if (value) {
-                  const valueJson = JSON.parse(JSON.stringify(value, BufferJSON.replacer));
-                  batch.set(docRef, valueJson);
+                  const valueStr = JSON.stringify(value, BufferJSON.replacer);
+                  batch.set(docRef, { data: valueStr });
                 } else {
                   batch.delete(docRef);
                 }
@@ -207,8 +216,21 @@ export const whatsappManager = {
       // Handle incoming messages & run automation workflows
       sock.ev.on("messages.upsert", async (m) => {
         if (m.type !== "notify") return;
+        const nowSec = Math.floor(Date.now() / 1000);
         for (const msg of m.messages) {
           if (!msg.message || msg.key.fromMe) continue;
+
+          // Skip offline / history / old messages to prevent out-of-memory and unwanted triggers
+          const ts = typeof msg.messageTimestamp === "number"
+            ? msg.messageTimestamp
+            : (msg.messageTimestamp as any)?.toNumber 
+              ? (msg.messageTimestamp as any).toNumber() 
+              : Number(msg.messageTimestamp || 0);
+
+          if (ts && ts < nowSec - 30) {
+            continue; // Skip old / offline messages
+          }
+
           await this.handleIncomingMessage(sessionId, sock, msg);
         }
       });
