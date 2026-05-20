@@ -87,6 +87,9 @@ interface PhotoBatch {
 const photoBatches = new Map<string, PhotoBatch>();
 
 export const whatsappManager = {
+  qrCodes: new Map<number, string>(),
+  statuses: new Map<number, string>(),
+
   async initAllSessions() {
     try {
       const sessions = await dbService.whatsappSessions.list();
@@ -148,12 +151,8 @@ export const whatsappManager = {
 
         if (qr) {
           logger.info(`QR Code received for session ${sessionId}`);
-          // Export the QR to the globally shared session map
-          const qrMap = require("../routes/whatsapp");
-          if (qrMap && typeof qrMap.getSessionQR === "function") {
-            // Write QR in global mapping
-            // Note: in a pure environment, we dynamically trigger callbacks or update status
-          }
+          this.qrCodes.set(sessionId, qr);
+          this.statuses.set(sessionId, "waiting_scan");
         }
 
         if (connection === "close") {
@@ -162,6 +161,9 @@ export const whatsappManager = {
           logger.warn(
             `Connection closed for session ${sessionId}. Reason: ${lastDisconnect?.error}. Reconnecting: ${shouldReconnect}`
           );
+
+          this.qrCodes.delete(sessionId);
+          this.statuses.set(sessionId, shouldReconnect ? "reconectando" : "desconectado");
 
           if (shouldReconnect) {
             this.connectSession(sessionId).catch(err => {
@@ -174,6 +176,8 @@ export const whatsappManager = {
           }
         } else if (connection === "open") {
           logger.info(`Connection established for session ${sessionId}!`);
+          this.qrCodes.delete(sessionId);
+          this.statuses.set(sessionId, "conectado");
           const userJid = sock.user?.id;
           await dbService.whatsappSessions.update(sessionId, {
             estado: "conectado",
@@ -199,6 +203,8 @@ export const whatsappManager = {
   },
 
   async disconnectSession(sessionId: number): Promise<void> {
+    this.qrCodes.delete(sessionId);
+    this.statuses.set(sessionId, "desconectado");
     const sock = activeSockets.get(sessionId);
     if (sock) {
       try {
@@ -226,6 +232,12 @@ export const whatsappManager = {
 
   // Central agent message processing logic
   async handleIncomingMessage(sessionId: number, sock: any, msg: any) {
+    const session = await dbService.whatsappSessions.get(sessionId);
+    if (!session || !session.botActivo) {
+      logger.info(`Bot is inactive (paused) for session ${sessionId}. Ignoring incoming message.`);
+      return;
+    }
+
     const from = msg.key.remoteJid;
     const isGroup = from.endsWith("@g.us");
 

@@ -1,40 +1,33 @@
 import { Router } from "express";
 import { dbService } from "../lib/dbService";
+import { whatsappManager } from "../lib/whatsappManager";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
-const sessionQRMap = new Map<number, string>();
-const sessionStatusMap = new Map<number, string>();
-const sessionTimers = new Map<number, ReturnType<typeof setTimeout>>();
-
-function generateMockQR(id: number): string {
-  return `shoeflow-auth:${id}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-}
-
 export function getSessionQR(id: number): string | null {
-  return sessionQRMap.get(id) ?? null;
+  return whatsappManager.qrCodes.get(id) ?? null;
 }
 
 export function getSessionStatus(id: number): string {
-  return sessionStatusMap.get(id) ?? "desconectado";
+  return whatsappManager.statuses.get(id) ?? "desconectado";
 }
 
 export async function startSession(sessionId: number): Promise<void> {
-  sessionStatusMap.set(sessionId, "sincronizando");
+  // Update state in database to synchronizing
   await dbService.whatsappSessions.update(sessionId, { estado: "sincronizando" });
+  
+  // Set in-memory statuses
+  whatsappManager.statuses.set(sessionId, "sincronizando");
 
-  const qr = generateMockQR(sessionId);
-  sessionQRMap.set(sessionId, qr);
-
-  const existing = sessionTimers.get(sessionId);
-  if (existing) clearTimeout(existing);
+  // Asynchronously trigger Baileys connection to generate real QR code
+  whatsappManager.connectSession(sessionId).catch((err) => {
+    logger.error({ err, sessionId }, "Failed to connect Baileys session in background");
+  });
 }
 
 export async function stopSession(sessionId: number): Promise<void> {
-  sessionQRMap.delete(sessionId);
-  sessionStatusMap.set(sessionId, "desconectado");
-  const t = sessionTimers.get(sessionId);
-  if (t) { clearTimeout(t); sessionTimers.delete(sessionId); }
+  await whatsappManager.disconnectSession(sessionId);
   await dbService.whatsappSessions.update(sessionId, { estado: "desconectado" });
 }
 
@@ -195,6 +188,23 @@ router.post("/sessions/:id/sync-groups", async (req, res) => {
     res.json({ success: true, gruposSincronizados: inserted.length, grupos: inserted.map((g: any) => g.nombre) });
   } catch (err) {
     req.log.error({ err }, "Error syncing groups");
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+router.post("/sessions/:id/toggle-bot", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const session = await dbService.whatsappSessions.get(id);
+    if (!session) {
+      res.status(404).json({ error: "Sesión no encontrada" });
+      return;
+    }
+    const currentStatus = session.botActivo ?? false;
+    const updated = await dbService.whatsappSessions.update(id, { botActivo: !currentStatus });
+    res.json({ success: true, botActivo: updated.botActivo });
+  } catch (err) {
+    req.log.error({ err }, "Error toggling bot status");
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });

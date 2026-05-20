@@ -204,6 +204,15 @@ export default function WhatsApp() {
     queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
   };
 
+  const handleToggleBot = async (id: number) => {
+    try {
+      await fetch(`/api/whatsapp/sessions/${id}/toggle-bot`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
+    } catch (err) {
+      console.error("Error toggling bot status", err);
+    }
+  };
+
   const handleSyncGroups = async (id: number) => {
     setSyncing(id);
     setSyncResult((prev) => ({ ...prev, [id]: "" }));
@@ -335,6 +344,26 @@ export default function WhatsApp() {
                       <p className="text-lg font-bold text-foreground capitalize">{session.estado}</p>
                       <p className="text-[10px] text-muted-foreground">Estado actual</p>
                     </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/20 border border-border p-3 mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: session.botActivo ? "#25D366" : "#64748B" }} />
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Automatizaciones</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {session.botActivo ? "Bot Activo (Respondiendo)" : "Bot Inactivo (Apagado)"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant={session.botActivo ? "destructive" : "outline"}
+                      size="sm"
+                      onClick={() => handleToggleBot(session.id)}
+                      className="text-xs h-7 px-2.5"
+                    >
+                      {session.botActivo ? "Apagar Bot" : "Encender Bot"}
+                    </Button>
                   </div>
 
                   {syncResult[session.id] && (
