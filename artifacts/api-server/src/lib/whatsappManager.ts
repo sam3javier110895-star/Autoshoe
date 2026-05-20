@@ -108,16 +108,18 @@ export const whatsappManager = {
   },
 
   async connectSession(sessionId: number): Promise<void> {
+    logger.info(`[connectSession] Starting connection process for sessionId=${sessionId}`);
     try {
       // Disconnect existing if any
+      logger.info(`[connectSession] Disconnecting existing session ${sessionId} if any`);
       await this.disconnectSession(sessionId);
 
       let authState: any;
       if (useFirestore) {
-        logger.info(`Session ${sessionId} using Firestore for auth state storage`);
+        logger.info(`[connectSession] Session ${sessionId} loading authState from Firestore`);
         authState = await useFirestoreAuthState(sessionId);
       } else {
-        logger.info(`Session ${sessionId} using local multi-file auth state storage`);
+        logger.info(`[connectSession] Session ${sessionId} loading authState from local storage`);
         const sessionDir = path.join(process.cwd(), "sessions", `session_${sessionId}`);
         if (!fs.existsSync(sessionDir)) {
           fs.mkdirSync(sessionDir, { recursive: true });
@@ -125,6 +127,7 @@ export const whatsappManager = {
         authState = await useMultiFileAuthState(sessionDir);
       }
       const { state, saveCreds } = authState;
+      logger.info(`[connectSession] Fetching latest Baileys version`);
       const { version } = await fetchLatestBaileysVersion();
 
       logger.info(`Starting Baileys session ${sessionId} with version ${version.join(".")}`);
@@ -132,6 +135,7 @@ export const whatsappManager = {
       const store = makeInMemoryStore({});
       sessionStores.set(sessionId, store);
 
+      logger.info(`[connectSession] Initializing WASocket for ${sessionId}`);
       const sock = makeWASocket({
         version,
         auth: state,
@@ -141,6 +145,7 @@ export const whatsappManager = {
 
       store.bind(sock.ev);
       activeSockets.set(sessionId, sock);
+      logger.info(`[connectSession] WASocket bound and active for ${sessionId}`);
 
       // Handle credentials update
       sock.ev.on("creds.update", saveCreds);

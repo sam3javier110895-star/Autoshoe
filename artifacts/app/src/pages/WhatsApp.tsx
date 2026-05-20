@@ -18,6 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:3000"
+  : (import.meta.env.VITE_API_URL || "https://autoshoe-backend.onrender.com");
+
 function estadoConfig(estado: string): { color: string; bg: string; label: string } {
   const map: Record<string, { color: string; bg: string; label: string }> = {
     conectado: { color: "#25D366", bg: "rgba(37,211,102,0.12)", label: "Conectado" },
@@ -195,18 +199,18 @@ export default function WhatsApp() {
   });
 
   const handleConnect = async (id: number) => {
-    await fetch(`/api/whatsapp/sessions/${id}/connect`, { method: "POST" });
+    await fetch(`${API_URL}/api/whatsapp/sessions/${id}/connect`, { method: "POST" });
     queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
   };
 
   const handleDisconnect = async (id: number) => {
-    await fetch(`/api/whatsapp/sessions/${id}/disconnect`, { method: "POST" });
+    await fetch(`${API_URL}/api/whatsapp/sessions/${id}/disconnect`, { method: "POST" });
     queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
   };
 
   const handleToggleBot = async (id: number) => {
     try {
-      await fetch(`/api/whatsapp/sessions/${id}/toggle-bot`, { method: "POST" });
+      await fetch(`${API_URL}/api/whatsapp/sessions/${id}/toggle-bot`, { method: "POST" });
       queryClient.invalidateQueries({ queryKey: getGetWhatsappSessionsQueryKey() });
     } catch (err) {
       console.error("Error toggling bot status", err);
@@ -217,7 +221,7 @@ export default function WhatsApp() {
     setSyncing(id);
     setSyncResult((prev) => ({ ...prev, [id]: "" }));
     try {
-      const r = await fetch(`/api/whatsapp/sessions/${id}/sync-groups`, { method: "POST" });
+      const r = await fetch(`${API_URL}/api/whatsapp/sessions/${id}/sync-groups`, { method: "POST" });
       const data = await r.json();
       if (data.success) {
         setSyncResult((prev) => ({ ...prev, [id]: `✓ ${data.gruposSincronizados} grupos sincronizados` }));

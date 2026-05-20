@@ -14,13 +14,21 @@ export function getSessionStatus(id: number): string {
 }
 
 export async function startSession(sessionId: number): Promise<void> {
+  logger.info(`[startSession] Trigggered for sessionId=${sessionId}`);
   // Update state in database to synchronizing
-  await dbService.whatsappSessions.update(sessionId, { estado: "sincronizando" });
+  try {
+    logger.info(`[startSession] Updating session ${sessionId} state to "sincronizando" in database`);
+    const updateResult = await dbService.whatsappSessions.update(sessionId, { estado: "sincronizando" });
+    logger.info(`[startSession] Database update success for ${sessionId}: ${JSON.stringify(updateResult)}`);
+  } catch (dbErr) {
+    logger.error({ err: dbErr, sessionId }, `[startSession] Failed to update session state in database`);
+  }
   
   // Set in-memory statuses
   whatsappManager.statuses.set(sessionId, "sincronizando");
 
   // Asynchronously trigger Baileys connection to generate real QR code
+  logger.info(`[startSession] Calling connectSession for ${sessionId}`);
   whatsappManager.connectSession(sessionId).catch((err) => {
     logger.error({ err, sessionId }, "Failed to connect Baileys session in background");
   });

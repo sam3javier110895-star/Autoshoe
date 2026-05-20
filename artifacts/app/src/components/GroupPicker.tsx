@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Users, Check, X, ChevronDown, WifiOff } from "lucide-react";
 
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:3000"
+  : (import.meta.env.VITE_API_URL || "https://autoshoe-backend.onrender.com");
+
 interface SyncedGroup {
   id: number;
   jid: string | null;
@@ -26,7 +30,7 @@ export function GroupPicker({ label, hint, selected, onChange, placeholder }: Gr
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/groups?activo=true")
+    fetch(`${API_URL}/api/groups?activo=true`)
       .then((r) => r.json())
       .then((data: SyncedGroup[]) => {
         setGroups(Array.isArray(data) ? data.filter((g) => g.jid) : []);

@@ -16,6 +16,10 @@ import {
 } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:3000"
+  : (import.meta.env.VITE_API_URL || "https://autoshoe-backend.onrender.com");
+
 function PulseOrb({ color, size }: { color: string; size: number }) {
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
@@ -85,7 +89,7 @@ function ActiveConsultas() {
 
   const fetchConsultas = async () => {
     try {
-      const r = await fetch("/api/consultas/activas");
+      const r = await fetch(`${API_URL}/api/consultas/activas`);
       const data = await r.json();
       if (Array.isArray(data)) setConsultas(data);
     } catch {}
