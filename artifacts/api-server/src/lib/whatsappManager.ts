@@ -228,13 +228,67 @@ export const whatsappManager = {
   async handleIncomingMessage(sessionId: number, sock: any, msg: any) {
     const from = msg.key.remoteJid;
     const isGroup = from.endsWith("@g.us");
-    if (!isGroup) return; // Keep it group-focused as required by footwear business
 
     const textContent =
       msg.message.conversation ||
       msg.message.extendedTextMessage?.text ||
       msg.message.imageMessage?.caption ||
       "";
+
+    // ---------------------------------------------------------
+    // FLOW: Direct Message (DM / Chat Privado) Handling
+    // ---------------------------------------------------------
+    if (!isGroup) {
+      const fromNumber = from.split("@")[0];
+      const lowerText = textContent.toLowerCase();
+
+      // Determine if this is a confirmation response (Fase 3)
+      const isConfirmation = lowerText.includes("segura") || 
+                             lowerText.includes("seguro") || 
+                             lowerText.includes("fija") || 
+                             lowerText.includes("fijo") ||
+                             lowerText.includes("confirma") ||
+                             lowerText.includes("si");
+
+      if (isConfirmation) {
+        logger.info(`Received safety confirmation from private contact ${fromNumber}: "${textContent}"`);
+
+        // Extract price using regex
+        const priceMatch = textContent.match(/\b\d{2,6}\b/) || textContent.match(/\b\d+k\b/i);
+        const price = priceMatch ? priceMatch[0] : "Confirmado";
+
+        // Find Group G (Target)
+        const groups = await dbService.groups.list();
+        const groupG = groups.find((g: any) => 
+          g.nombre.toLowerCase().includes("grupo g") || 
+          g.nombre.toLowerCase().includes("confirmados") || 
+          g.nombre.toLowerCase().includes("ventas")
+        );
+
+        if (groupG) {
+          logger.info(`Found target Group G: "${groupG.nombre}" (JID: ${groupG.jid})`);
+
+          // Construct the confirmation message
+          const reportMsg = `👟 *ZAPATILLA CONFIRMADA* 👟\n\n` +
+                            `📞 *Contacto:* +${fromNumber}\n` +
+                            `💵 *Precio:* ${price}\n` +
+                            `✅ *Estado:* SEGURA / FIJA\n\n` +
+                            `_Confirmado vía bot ShoeFlow Manager_`;
+
+          await sock.sendMessage(groupG.jid, { text: reportMsg });
+          logger.info(`Successfully posted confirmation report in Group G`);
+        } else {
+          logger.warn("Target Group G not found in database. Please name your target group 'Grupo G' or 'Confirmados'.");
+        }
+      } else {
+        // If it's a first contact or general query (Fase 2)
+        // Reply asking if it is safe and the price!
+        const replyText = `¡Hola! Gracias por escribir. ¿Es segura o fija esta zapatilla? Por favor confírmame el precio.`;
+        await sock.sendMessage(from, { text: replyText });
+        logger.info(`Sent safety prompt in private to ${fromNumber}`);
+      }
+      return;
+    }
 
     // Fetch the group info from db
     const groups = await dbService.groups.list();
