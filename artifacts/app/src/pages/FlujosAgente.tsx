@@ -18,7 +18,9 @@ import {
   useToggleFlujo,
   simularFlujo,
   getListFlujosQueryKey,
+  useListGroups,
 } from "@workspace/api-client-react";
+import { GroupPicker } from "@/components/GroupPicker";
 
 const faseColors: Record<number, string> = { 1: "#25D366", 2: "#F59E0B", 3: "#3B82F6" };
 const faseIcons = [Send, MessageSquare, Megaphone];
@@ -184,7 +186,7 @@ function NuevoFlujoModal({ onClose }: { onClose: () => void }) {
 
   const [nombre, setNombre] = useState("Flujo Zapatos Principales");
   const [grupoOrigen, setGrupoOrigen] = useState("");
-  const [gruposDestino, setGruposDestino] = useState("");
+  const [gruposDestino, setGruposDestino] = useState<string[]>([]);
   const [imagenesPorLote, setImagenesPorLote] = useState(3);
   const [intervaloSegundos, setIntervaloSegundos] = useState(15);
   const [mensajeConsulta, setMensajeConsulta] = useState("¿Tienen esta zapatilla? Precio y disponibilidad");
@@ -208,7 +210,7 @@ function NuevoFlujoModal({ onClose }: { onClose: () => void }) {
       data: {
         nombre,
         grupoOrigen,
-        gruposDestino: gruposDestino.split(",").map((g) => g.trim()).filter(Boolean),
+        gruposDestino,
         imagenesPorLote,
         intervaloSegundos,
         mensajeConsulta,
@@ -281,14 +283,24 @@ function NuevoFlujoModal({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><Radio className="w-3 h-3" /> Grupo origen (A)</Label>
-                  <Input placeholder="Ej: Novedades Zapatos, Clientes VIP..." value={grupoOrigen} onChange={(e) => setGrupoOrigen(e.target.value)} className="bg-muted/30 border-border text-foreground" />
-                  <p className="text-[10px] text-muted-foreground">Grupo donde llegan las fotos de referencias</p>
+                  <GroupPicker
+                    label="Grupo origen (A)"
+                    hint="Grupo donde llegan las fotos de referencias"
+                    selected={grupoOrigen ? [grupoOrigen] : []}
+                    onChange={(jids) => setGrupoOrigen(jids[0] || "")}
+                    placeholder="Seleccionar grupo origen..."
+                    multiple={false}
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> Grupos destino (B,C,D,E,F)</Label>
-                  <Input placeholder="Grupo B, Grupo C, Proveedor Nike, Proveedor Adidas..." value={gruposDestino} onChange={(e) => setGruposDestino(e.target.value)} className="bg-muted/30 border-border text-foreground" />
-                  <p className="text-[10px] text-muted-foreground">Grupos proveedores separados por coma</p>
+                  <GroupPicker
+                    label="Grupos proveedores (B,C,D,E,F)"
+                    hint="Grupos proveedores donde se reenviarán las fotos"
+                    selected={gruposDestino}
+                    onChange={setGruposDestino}
+                    placeholder="Seleccionar proveedores..."
+                    multiple={true}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Mensaje de consulta</Label>
@@ -337,9 +349,14 @@ function NuevoFlujoModal({ onClose }: { onClose: () => void }) {
                   <p className="text-muted-foreground">Con precio confirmado, el agente va al grupo de publicación, señala la zapatilla y pega el número con el precio.</p>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><Megaphone className="w-3 h-3" /> Grupo de publicación (G)</Label>
-                  <Input placeholder="Ej: Catálogo Clientes, Ventas VIP..." value={grupoPublicacion} onChange={(e) => setGrupoPublicacion(e.target.value)} className="bg-muted/30 border-border text-foreground" />
-                  <p className="text-[10px] text-muted-foreground">Grupo donde se publica el resultado final</p>
+                  <GroupPicker
+                    label="Grupo de publicación (G)"
+                    hint="Grupo donde se publica el resultado final"
+                    selected={grupoPublicacion ? [grupoPublicacion] : []}
+                    onChange={(jids) => setGrupoPublicacion(jids[0] || "")}
+                    placeholder="Seleccionar grupo confirmados..."
+                    multiple={false}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Plantilla del mensaje</Label>
@@ -386,6 +403,11 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
   const [showSim, setShowSim] = useState(false);
   const queryClient = useQueryClient();
 
+  const { data: groups } = useListGroups();
+  const getGroupName = (jid: string) => {
+    return groups?.find((g) => g.jid === jid)?.nombre ?? jid;
+  };
+
   const toggleMut = useToggleFlujo({
     mutation: {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getListFlujosQueryKey() }),
@@ -421,7 +443,7 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {flujo.grupoOrigen as string || "Sin origen"} → {destinos.length} grupos → {flujo.grupoPublicacion as string || "Sin destino final"}
+              {getGroupName(flujo.grupoOrigen as string) || "Sin origen"} → {destinos.length} grupos → {getGroupName(flujo.grupoPublicacion as string) || "Sin destino final"}
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -450,7 +472,7 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
             {[
               { label: `${flujo.imagenesPorLote as number} fotos / ${flujo.intervaloSegundos as number}s`, icon: Send, color: "#25D366" },
               { label: `"${(flujo.preguntaConfirmacion as string)?.substring(0, 20)}..."`, icon: MessageSquare, color: "#F59E0B" },
-              { label: flujo.grupoPublicacion as string || "Grupo G", icon: Megaphone, color: "#3B82F6" },
+              { label: getGroupName(flujo.grupoPublicacion as string) || "Grupo G", icon: Megaphone, color: "#3B82F6" },
             ].map((phase, i) => (
               <div key={i} className="flex items-center gap-1 flex-1">
                 <div className="flex-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[10px]" style={{ background: `${phase.color}10` }}>
@@ -468,11 +490,11 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div className="space-y-2">
                 <p className="font-semibold" style={{ color: "#25D366" }}>Fase 1 — Reenvío</p>
-                <div><span className="text-muted-foreground">Origen: </span><span className="text-foreground">{flujo.grupoOrigen as string || "—"}</span></div>
+                <div><span className="text-muted-foreground">Origen: </span><span className="text-foreground">{getGroupName(flujo.grupoOrigen as string) || "—"}</span></div>
                 <div>
                   <p className="text-muted-foreground mb-1">Destinos:</p>
                   <div className="flex flex-wrap gap-1">
-                    {destinos.map((g, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[10px] border border-border text-muted-foreground">{g}</span>)}
+                    {destinos.map((g, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[10px] border border-border text-muted-foreground">{getGroupName(g)}</span>)}
                   </div>
                 </div>
                 <div><span className="text-muted-foreground">Mensaje: </span><span className="text-foreground italic">"{(flujo.mensajeConsulta as string)?.substring(0, 50)}..."</span></div>
@@ -490,7 +512,7 @@ function FlujoCard({ flujo, index }: { flujo: Record<string, unknown>; index: nu
               </div>
               <div className="space-y-2">
                 <p className="font-semibold" style={{ color: "#3B82F6" }}>Fase 3 — Publicación</p>
-                <div><span className="text-muted-foreground">Grupo G: </span><span className="text-foreground">{flujo.grupoPublicacion as string || "—"}</span></div>
+                <div><span className="text-muted-foreground">Grupo G: </span><span className="text-foreground">{getGroupName(flujo.grupoPublicacion as string) || "—"}</span></div>
                 <div><span className="text-muted-foreground">Plantilla: </span><span className="text-foreground italic">"{flujo.plantillaPublicacion as string}"</span></div>
               </div>
             </div>

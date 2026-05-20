@@ -20,9 +20,10 @@ interface GroupPickerProps {
   selected: string[];
   onChange: (jids: string[]) => void;
   placeholder?: string;
+  multiple?: boolean;
 }
 
-export function GroupPicker({ label, hint, selected, onChange, placeholder }: GroupPickerProps) {
+export function GroupPicker({ label, hint, selected, onChange, placeholder, multiple = true }: GroupPickerProps) {
   const [groups, setGroups] = useState<SyncedGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -54,10 +55,19 @@ export function GroupPicker({ label, hint, selected, onChange, placeholder }: Gr
   );
 
   const toggle = (jid: string) => {
-    if (selected.includes(jid)) {
-      onChange(selected.filter((j) => j !== jid));
+    if (!multiple) {
+      if (selected.includes(jid)) {
+        onChange([]);
+      } else {
+        onChange([jid]);
+        setOpen(false);
+      }
     } else {
-      onChange([...selected, jid]);
+      if (selected.includes(jid)) {
+        onChange(selected.filter((j) => j !== jid));
+      } else {
+        onChange([...selected, jid]);
+      }
     }
   };
 

@@ -259,13 +259,16 @@ export const whatsappManager = {
       const fromNumber = from.split("@")[0];
       const lowerText = textContent.toLowerCase();
 
+      // Find active flujo
+      const flujos = await dbService.flujos.list();
+      const activeFlujo = flujos.find((f: any) => f.activo);
+
       // Determine if this is a confirmation response (Fase 3)
-      const isConfirmation = lowerText.includes("segura") || 
-                             lowerText.includes("seguro") || 
-                             lowerText.includes("fija") || 
-                             lowerText.includes("fijo") ||
-                             lowerText.includes("confirma") ||
-                             lowerText.includes("si");
+      const confirmationKeywords = activeFlujo?.palabrasConfirmacion?.length
+        ? activeFlujo.palabrasConfirmacion
+        : ["segura", "seguro", "fija", "fijo", "confirma", "si", "sí"];
+
+      const isConfirmation = confirmationKeywords.some((kw: string) => lowerText.includes(kw.toLowerCase()));
 
       if (isConfirmation) {
         logger.info(`Received safety confirmation from private contact ${fromNumber}: "${textContent}"`);
@@ -274,33 +277,53 @@ export const whatsappManager = {
         const priceMatch = textContent.match(/\b\d{2,6}\b/) || textContent.match(/\b\d+k\b/i);
         const price = priceMatch ? priceMatch[0] : "Confirmado";
 
-        // Find Group G (Target)
+        // Find Target Group
         const groups = await dbService.groups.list();
-        const groupG = groups.find((g: any) => 
-          g.nombre.toLowerCase().includes("grupo g") || 
-          g.nombre.toLowerCase().includes("confirmados") || 
-          g.nombre.toLowerCase().includes("ventas")
-        );
+        let targetGroup = null;
+        if (activeFlujo && activeFlujo.grupoPublicacion) {
+          targetGroup = groups.find((g: any) => 
+            g.jid === activeFlujo.grupoPublicacion || 
+            g.nombre === activeFlujo.grupoPublicacion
+          );
+        }
 
-        if (groupG) {
-          logger.info(`Found target Group G: "${groupG.nombre}" (JID: ${groupG.jid})`);
+        // Fallback to name search
+        if (!targetGroup) {
+          targetGroup = groups.find((g: any) => 
+            g.nombre.toLowerCase().includes("grupo g") || 
+            g.nombre.toLowerCase().includes("confirmados") || 
+            g.nombre.toLowerCase().includes("ventas")
+          );
+        }
+
+        if (targetGroup) {
+          logger.info(`Found target publication group: "${targetGroup.nombre}" (JID: ${targetGroup.jid})`);
 
           // Construct the confirmation message
-          const reportMsg = `👟 *ZAPATILLA CONFIRMADA* 👟\n\n` +
-                            `📞 *Contacto:* +${fromNumber}\n` +
-                            `💵 *Precio:* ${price}\n` +
-                            `✅ *Estado:* SEGURA / FIJA\n\n` +
-                            `_Confirmado vía bot ShoeFlow Manager_`;
+          let reportMsg = "";
+          if (activeFlujo && activeFlujo.plantillaPublicacion) {
+            reportMsg = activeFlujo.plantillaPublicacion
+              .replace(/{numero}/g, `+${fromNumber}`)
+              .replace(/{precio}/g, price);
+          } else {
+            reportMsg = `👟 *ZAPATILLA CONFIRMADA* 👟\n\n` +
+                        `📞 *Contacto:* +${fromNumber}\n` +
+                        `💵 *Precio:* ${price}\n` +
+                        `✅ *Estado:* SEGURA / FIJA\n\n` +
+                        `_Confirmado vía bot ShoeFlow Manager_`;
+          }
 
-          await sock.sendMessage(groupG.jid, { text: reportMsg });
-          logger.info(`Successfully posted confirmation report in Group G`);
+          await sock.sendMessage(targetGroup.jid, { text: reportMsg });
+          logger.info(`Successfully posted confirmation report in target group`);
         } else {
-          logger.warn("Target Group G not found in database. Please name your target group 'Grupo G' or 'Confirmados'.");
+          logger.warn("Target group for publication not found. Please configure a 'grupoPublicacion' or name your target group 'Grupo G' or 'Confirmados'.");
         }
       } else {
         // If it's a first contact or general query (Fase 2)
         // Reply asking if it is safe and the price!
-        const replyText = `¡Hola! Gracias por escribir. ¿Es segura o fija esta zapatilla? Por favor confírmame el precio.`;
+        const replyText = activeFlujo && activeFlujo.preguntaConfirmacion
+          ? activeFlujo.preguntaConfirmacion
+          : `¡Hola! Gracias por escribir. ¿Es segura o fija esta zapatilla? Por favor confírmame el precio.`;
         await sock.sendMessage(from, { text: replyText });
         logger.info(`Sent safety prompt in private to ${fromNumber}`);
       }
@@ -316,7 +339,9 @@ export const whatsappManager = {
 
     // Let's check: are we running active Phase 1 flujos on this group?
     const flujos = await dbService.flujos.list();
-    const activeFlujos = flujos.filter((f: any) => f.activo && f.grupoOrigen === activeGroup.nombre);
+    const activeFlujos = flujos.filter(
+      (f: any) => f.activo && (f.grupoOrigen === activeGroup.nombre || f.grupoOrigen === activeGroup.jid)
+    );
 
     for (const f of activeFlujos) {
       // Check if message contains shoe images
@@ -329,7 +354,7 @@ export const whatsappManager = {
     // Check if we are running active Automations
     const automations = await dbService.automations.list();
     const activeAutomations = automations.filter(
-      (a: any) => a.activa && a.gruposOrigen.includes(activeGroup.nombre)
+      (a: any) => a.activa && (a.gruposOrigen.includes(activeGroup.nombre) || a.gruposOrigen.includes(activeGroup.jid))
     );
 
     for (const auto of activeAutomations) {
@@ -392,7 +417,10 @@ export const whatsappManager = {
     logger.info(`Phase 1 batch complete for Flujo "${flujo.nombre}". Forwarding ${batch.images.length} shoe images to suppliers...`);
 
     const groups = await dbService.groups.list();
-    const destGroups = groups.filter((g: any) => flujo.gruposDestino.includes(g.nombre));
+    const destGroups = groups.filter((g: any) =>
+      flujo.gruposDestino.includes(g.nombre) ||
+      flujo.gruposDestino.includes(g.jid)
+    );
 
     // Save forwarded message log
     await dbService.messages.create({
