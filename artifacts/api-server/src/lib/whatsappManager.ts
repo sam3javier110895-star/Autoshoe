@@ -115,6 +115,10 @@ export const whatsappManager = {
   qrCodes: new Map<number, string>(),
   statuses: new Map<number, string>(),
 
+  getActiveSocket(sessionId: number): any {
+    return activeSockets.get(sessionId);
+  },
+
   async initAllSessions() {
     try {
       const sessions = await dbService.whatsappSessions.list();
