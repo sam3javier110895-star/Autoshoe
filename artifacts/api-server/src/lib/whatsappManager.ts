@@ -4,6 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   BufferJSON,
   initAuthCreds,
+  proto,
 } from "@whiskeysockets/baileys";
 import * as path from "path";
 import * as fs from "fs";
@@ -16,6 +17,12 @@ const { makeInMemoryStore } = require("@whiskeysockets/baileys");
 // Store multi-session sockets active in memory
 const activeSockets = new Map<number, any>();
 const sessionStores = new Map<number, any>();
+
+const makeSafeDocId = (type: string, id: string) => {
+  // Replace slashes with double underscores and colons with hyphens, matching Baileys filename fixing
+  const safeId = id.replace(/\//g, "__").replace(/:/g, "-");
+  return `${type}__${safeId}`;
+};
 
 async function useFirestoreAuthState(sessionId: number) {
   const sessionRef = dbFirestore!.collection("whatsapp_sessions").doc(String(sessionId));
@@ -43,32 +50,44 @@ async function useFirestoreAuthState(sessionId: number) {
           const data: { [id: string]: any } = {};
           await Promise.all(
             ids.map(async (id) => {
-              const docId = `${type}__${id}`;
-              const doc = await keysRef.doc(docId).get();
-              if (doc.exists) {
-                data[id] = JSON.parse(JSON.stringify(doc.data()), BufferJSON.reviver);
+              const docId = makeSafeDocId(type, id);
+              try {
+                const doc = await keysRef.doc(docId).get();
+                if (doc.exists) {
+                  let value = JSON.parse(JSON.stringify(doc.data()), BufferJSON.reviver);
+                  if (type === "app-state-sync-key" && value) {
+                    value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                  }
+                  data[id] = value;
+                }
+              } catch (e) {
+                logger.error({ err: e, type, id, docId }, "Error getting auth key from Firestore");
               }
             })
           );
           return data;
         },
         set: async (data: any) => {
-          const batch = dbFirestore!.batch();
-          for (const type of Object.keys(data)) {
-            const typeData = data[type];
-            for (const id of Object.keys(typeData)) {
-              const value = typeData[id];
-              const docId = `${type}__${id}`;
-              const docRef = keysRef.doc(docId);
-              if (value) {
-                const valueJson = JSON.parse(JSON.stringify(value, BufferJSON.replacer));
-                batch.set(docRef, valueJson);
-              } else {
-                batch.delete(docRef);
+          try {
+            const batch = dbFirestore!.batch();
+            for (const type of Object.keys(data)) {
+              const typeData = data[type];
+              for (const id of Object.keys(typeData)) {
+                const value = typeData[id];
+                const docId = makeSafeDocId(type, id);
+                const docRef = keysRef.doc(docId);
+                if (value) {
+                  const valueJson = JSON.parse(JSON.stringify(value, BufferJSON.replacer));
+                  batch.set(docRef, valueJson);
+                } else {
+                  batch.delete(docRef);
+                }
               }
             }
+            await batch.commit();
+          } catch (e) {
+            logger.error({ err: e }, "Error setting auth keys in Firestore");
           }
-          await batch.commit();
         }
       }
     },
