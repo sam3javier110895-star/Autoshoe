@@ -12,11 +12,8 @@ import { logger } from "./logger";
 import { dbService } from "./dbService";
 import { dbFirestore, useFirestore } from "./firebase";
 
-const { makeInMemoryStore } = require("@whiskeysockets/baileys");
-
 // Store multi-session sockets active in memory
 const activeSockets = new Map<number, any>();
-const sessionStores = new Map<number, any>();
 
 const makeSafeDocId = (type: string, id: string) => {
   // Replace slashes with double underscores and colons with hyphens, matching Baileys filename fixing
@@ -151,9 +148,6 @@ export const whatsappManager = {
 
       logger.info(`Starting Baileys session ${sessionId} with version ${version.join(".")}`);
 
-      const store = makeInMemoryStore({});
-      sessionStores.set(sessionId, store);
-
       logger.info(`[connectSession] Initializing WASocket for ${sessionId}`);
       const sock = makeWASocket({
         version,
@@ -162,7 +156,6 @@ export const whatsappManager = {
         printQRInTerminal: false,
       });
 
-      store.bind(sock.ev);
       activeSockets.set(sessionId, sock);
       logger.info(`[connectSession] WASocket bound and active for ${sessionId}`);
 
@@ -238,7 +231,6 @@ export const whatsappManager = {
       }
       activeSockets.delete(sessionId);
     }
-    sessionStores.delete(sessionId);
     logger.info(`Session ${sessionId} disconnected`);
   },
 
