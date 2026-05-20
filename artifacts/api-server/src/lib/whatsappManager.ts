@@ -2,17 +2,79 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
+  BufferJSON,
+  initAuthCreds,
 } from "@whiskeysockets/baileys";
 import * as path from "path";
 import * as fs from "fs";
 import { logger } from "./logger";
 import { dbService } from "./dbService";
+import { dbFirestore, useFirestore } from "./firebase";
 
 const { makeInMemoryStore } = require("@whiskeysockets/baileys");
 
 // Store multi-session sockets active in memory
 const activeSockets = new Map<number, any>();
 const sessionStores = new Map<number, any>();
+
+async function useFirestoreAuthState(sessionId: number) {
+  const sessionRef = dbFirestore!.collection("whatsapp_sessions").doc(String(sessionId));
+  const keysRef = sessionRef.collection("auth_keys");
+
+  // Read creds
+  const authDoc = await sessionRef.collection("auth").doc("creds").get();
+  let creds: any = null;
+  if (authDoc.exists) {
+    creds = JSON.parse(JSON.stringify(authDoc.data()), BufferJSON.reviver);
+  } else {
+    creds = initAuthCreds();
+  }
+
+  const saveCreds = async () => {
+    const credsJson = JSON.parse(JSON.stringify(creds, BufferJSON.replacer));
+    await sessionRef.collection("auth").doc("creds").set(credsJson);
+  };
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: async (type: string, ids: string[]) => {
+          const data: { [id: string]: any } = {};
+          await Promise.all(
+            ids.map(async (id) => {
+              const docId = `${type}__${id}`;
+              const doc = await keysRef.doc(docId).get();
+              if (doc.exists) {
+                data[id] = JSON.parse(JSON.stringify(doc.data()), BufferJSON.reviver);
+              }
+            })
+          );
+          return data;
+        },
+        set: async (data: any) => {
+          const batch = dbFirestore!.batch();
+          for (const type of Object.keys(data)) {
+            const typeData = data[type];
+            for (const id of Object.keys(typeData)) {
+              const value = typeData[id];
+              const docId = `${type}__${id}`;
+              const docRef = keysRef.doc(docId);
+              if (value) {
+                const valueJson = JSON.parse(JSON.stringify(value, BufferJSON.replacer));
+                batch.set(docRef, valueJson);
+              } else {
+                batch.delete(docRef);
+              }
+            }
+          }
+          await batch.commit();
+        }
+      }
+    },
+    saveCreds
+  };
+}
 
 // In-memory queues to group photo batches for Phase 1 Flujos
 interface PhotoBatch {
@@ -47,12 +109,19 @@ export const whatsappManager = {
       // Disconnect existing if any
       await this.disconnectSession(sessionId);
 
-      const sessionDir = path.join(process.cwd(), "sessions", `session_${sessionId}`);
-      if (!fs.existsSync(sessionDir)) {
-        fs.mkdirSync(sessionDir, { recursive: true });
+      let authState: any;
+      if (useFirestore) {
+        logger.info(`Session ${sessionId} using Firestore for auth state storage`);
+        authState = await useFirestoreAuthState(sessionId);
+      } else {
+        logger.info(`Session ${sessionId} using local multi-file auth state storage`);
+        const sessionDir = path.join(process.cwd(), "sessions", `session_${sessionId}`);
+        if (!fs.existsSync(sessionDir)) {
+          fs.mkdirSync(sessionDir, { recursive: true });
+        }
+        authState = await useMultiFileAuthState(sessionDir);
       }
-
-      const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+      const { state, saveCreds } = authState;
       const { version } = await fetchLatestBaileysVersion();
 
       logger.info(`Starting Baileys session ${sessionId} with version ${version.join(".")}`);
