@@ -15,6 +15,12 @@ import Contactos from "@/pages/Contactos";
 import Monitor from "@/pages/Monitor";
 import IA from "@/pages/IA";
 import FlujosAgente from "@/pages/FlujosAgente";
+import { setBaseUrl } from "@workspace/api-client-react";
+
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:3000"
+  : (import.meta.env.VITE_API_URL || "https://autoshoe-backend.onrender.com");
+setBaseUrl(API_URL);
 
 const queryClient = new QueryClient({
   defaultOptions: {
