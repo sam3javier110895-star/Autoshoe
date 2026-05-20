@@ -94,6 +94,7 @@ router.delete("/sessions/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await stopSession(id);
+    await whatsappManager.clearSessionCredentials(id);
     await dbService.whatsappSessions.delete(id);
     res.json({ success: true, message: "Sesión eliminada" });
   } catch (err) {

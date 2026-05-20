@@ -156,8 +156,14 @@ export const whatsappManager = {
         authState = await useMultiFileAuthState(sessionDir);
       }
       const { state, saveCreds } = authState;
-      logger.info(`[connectSession] Fetching latest Baileys version`);
-      const { version } = await fetchLatestBaileysVersion();
+      let version: any = [6, 45, 0];
+      try {
+        logger.info(`[connectSession] Fetching latest Baileys version`);
+        const res = await fetchLatestBaileysVersion().catch(() => ({ version: [6, 45, 0] }));
+        version = res.version;
+      } catch (err) {
+        logger.warn(`Failed to fetch latest Baileys version, using default: ${version}`);
+      }
 
       logger.info(`Starting Baileys session ${sessionId} with version ${version.join(".")}`);
 
@@ -201,7 +207,9 @@ export const whatsappManager = {
             });
           } else {
             logger.info(`Session ${sessionId} completely logged out. Cleaning up credentials.`);
-            this.clearSessionCredentials(sessionId);
+            this.clearSessionCredentials(sessionId).catch(err => {
+              logger.error({ err, sessionId }, "Failed to clear credentials on logout");
+            });
             await dbService.whatsappSessions.update(sessionId, { estado: "desconectado" });
           }
         } else if (connection === "open") {
@@ -260,7 +268,7 @@ export const whatsappManager = {
     logger.info(`Session ${sessionId} disconnected`);
   },
 
-  clearSessionCredentials(sessionId: number) {
+  async clearSessionCredentials(sessionId: number) {
     const sessionDir = path.join(process.cwd(), "sessions", `session_${sessionId}`);
     if (fs.existsSync(sessionDir)) {
       try {
@@ -268,6 +276,35 @@ export const whatsappManager = {
         logger.info(`Cleaned up session directory for ${sessionId}`);
       } catch (err) {
         logger.error({ err, sessionId }, "Failed to clear session directory");
+      }
+    }
+    if (useFirestore && dbFirestore) {
+      try {
+        logger.info(`Clearing Firestore auth credentials for session ${sessionId}...`);
+        const sessionRef = dbFirestore.collection("whatsapp_sessions").doc(String(sessionId));
+        
+        // Delete creds
+        await sessionRef.collection("auth").doc("creds").delete();
+        
+        // Delete all auth keys
+        const keysRef = sessionRef.collection("auth_keys");
+        const keysSnap = await keysRef.get();
+        let batch = dbFirestore.batch();
+        let count = 0;
+        for (const doc of keysSnap.docs) {
+          batch.delete(doc.ref);
+          count++;
+          if (count % 400 === 0) {
+            await batch.commit();
+            batch = dbFirestore.batch();
+          }
+        }
+        if (count % 400 !== 0) {
+          await batch.commit();
+        }
+        logger.info(`Successfully cleared Firestore auth credentials for session ${sessionId} (deleted ${count} keys)`);
+      } catch (err) {
+        logger.error({ err, sessionId }, "Failed to clear Firestore auth credentials");
       }
     }
   },
