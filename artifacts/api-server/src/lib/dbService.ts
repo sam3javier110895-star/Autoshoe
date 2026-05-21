@@ -44,12 +44,23 @@ async function getNextId(collectionName: string): Promise<number> {
   return (maxDoc.id || 0) + 1;
 }
 
+// Memory cache to prevent Firestore quota exhaustion and improve performance
+const cache = {
+  flujos: null as any[] | null,
+  automations: null as any[] | null,
+  whatsappSessions: new Map<number, any>(),
+  whatsappSessionsList: null as any[] | null,
+  groups: null as any[] | null,
+};
+
 export const dbService = {
   flujos: {
     async list() {
       if (useFirestore && dbFirestore) {
+        if (cache.flujos) return cache.flujos;
         const snap = await dbFirestore.collection("flujos").orderBy("id").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        cache.flujos = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        return cache.flujos;
       }
       // Drizzle fallback
       return db.select().from(flujosAgenteTable).orderBy(flujosAgenteTable.id);
@@ -57,6 +68,10 @@ export const dbService = {
 
     async get(id: number) {
       if (useFirestore && dbFirestore) {
+        if (cache.flujos) {
+          const found = cache.flujos.find((f: any) => f.id === id);
+          if (found) return found;
+        }
         const snap = await dbFirestore.collection("flujos").where("id", "==", id).limit(1).get();
         if (snap.empty) return null;
         return sanitizeFirestoreData(snap.docs[0].data());
@@ -77,6 +92,7 @@ export const dbService = {
           creadoEn: new Date(),
         };
         await dbFirestore.collection("flujos").doc(id.toString()).set(docData);
+        cache.flujos = null;
         return docData;
       }
       const [item] = await db.insert(flujosAgenteTable).values(data).returning();
@@ -90,6 +106,7 @@ export const dbService = {
         if (!snap.exists) return null;
         const updatedData = { ...snap.data(), ...data };
         await docRef.update(data);
+        cache.flujos = null;
         return sanitizeFirestoreData(updatedData);
       }
       const [item] = await db.update(flujosAgenteTable).set(data).where(eq(flujosAgenteTable.id, id)).returning();
@@ -99,6 +116,7 @@ export const dbService = {
     async delete(id: number) {
       if (useFirestore && dbFirestore) {
         await dbFirestore.collection("flujos").doc(id.toString()).delete();
+        cache.flujos = null;
         return true;
       }
       await db.delete(flujosAgenteTable).where(eq(flujosAgenteTable.id, id));
@@ -118,6 +136,7 @@ export const dbService = {
             });
           }
         });
+        cache.flujos = null;
         return;
       }
       await db
@@ -133,14 +152,20 @@ export const dbService = {
   automations: {
     async list() {
       if (useFirestore && dbFirestore) {
+        if (cache.automations) return cache.automations;
         const snap = await dbFirestore.collection("automations").orderBy("id").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        cache.automations = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        return cache.automations;
       }
       return db.select().from(automationsTable).orderBy(automationsTable.id);
     },
 
     async get(id: number) {
       if (useFirestore && dbFirestore) {
+        if (cache.automations) {
+          const found = cache.automations.find((a: any) => a.id === id);
+          if (found) return found;
+        }
         const snap = await dbFirestore.collection("automations").where("id", "==", id).limit(1).get();
         if (snap.empty) return null;
         return sanitizeFirestoreData(snap.docs[0].data());
@@ -161,6 +186,7 @@ export const dbService = {
           creadaEn: new Date(),
         };
         await dbFirestore.collection("automations").doc(id.toString()).set(docData);
+        cache.automations = null;
         return docData;
       }
       const [item] = await db.insert(automationsTable).values(data).returning();
@@ -174,6 +200,7 @@ export const dbService = {
         if (!snap.exists) return null;
         const updatedData = { ...snap.data(), ...data };
         await docRef.update(data);
+        cache.automations = null;
         return sanitizeFirestoreData(updatedData);
       }
       const [item] = await db.update(automationsTable).set(data).where(eq(automationsTable.id, id)).returning();
@@ -183,6 +210,7 @@ export const dbService = {
     async delete(id: number) {
       if (useFirestore && dbFirestore) {
         await dbFirestore.collection("automations").doc(id.toString()).delete();
+        cache.automations = null;
         return true;
       }
       await db.delete(automationsTable).where(eq(automationsTable.id, id));
@@ -202,6 +230,7 @@ export const dbService = {
             });
           }
         });
+        cache.automations = null;
         return;
       }
       await db
@@ -217,17 +246,23 @@ export const dbService = {
   whatsappSessions: {
     async list() {
       if (useFirestore && dbFirestore) {
+        if (cache.whatsappSessionsList) return cache.whatsappSessionsList;
         const snap = await dbFirestore.collection("whatsapp_sessions").orderBy("id").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        cache.whatsappSessionsList = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        return cache.whatsappSessionsList;
       }
       return db.select().from(whatsappSessionsTable).orderBy(whatsappSessionsTable.id);
     },
 
     async get(id: number) {
       if (useFirestore && dbFirestore) {
+        const cached = cache.whatsappSessions.get(id);
+        if (cached) return cached;
         const snap = await dbFirestore.collection("whatsapp_sessions").where("id", "==", id).limit(1).get();
         if (snap.empty) return null;
-        return sanitizeFirestoreData(snap.docs[0].data());
+        const session = sanitizeFirestoreData(snap.docs[0].data());
+        cache.whatsappSessions.set(id, session);
+        return session;
       }
       const [item] = await db.select().from(whatsappSessionsTable).where(eq(whatsappSessionsTable.id, id));
       return item || null;
@@ -243,6 +278,7 @@ export const dbService = {
           ultimaConexion: null,
         };
         await dbFirestore.collection("whatsapp_sessions").doc(id.toString()).set(docData);
+        cache.whatsappSessionsList = null;
         return docData;
       }
       const [item] = await db.insert(whatsappSessionsTable).values(data).returning();
@@ -256,6 +292,8 @@ export const dbService = {
         if (!snap.exists) return null;
         const updatedData = { ...snap.data(), ...data };
         await docRef.update(data);
+        cache.whatsappSessionsList = null;
+        cache.whatsappSessions.delete(id);
         return sanitizeFirestoreData(updatedData);
       }
       const [item] = await db.update(whatsappSessionsTable).set(data).where(eq(whatsappSessionsTable.id, id)).returning();
@@ -265,6 +303,8 @@ export const dbService = {
     async delete(id: number) {
       if (useFirestore && dbFirestore) {
         await dbFirestore.collection("whatsapp_sessions").doc(id.toString()).delete();
+        cache.whatsappSessionsList = null;
+        cache.whatsappSessions.delete(id);
         return true;
       }
       await db.delete(whatsappSessionsTable).where(eq(whatsappSessionsTable.id, id));
@@ -275,14 +315,20 @@ export const dbService = {
   groups: {
     async list() {
       if (useFirestore && dbFirestore) {
+        if (cache.groups) return cache.groups;
         const snap = await dbFirestore.collection("groups").orderBy("nombre").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        cache.groups = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        return cache.groups;
       }
       return db.select().from(groupsTable).orderBy(groupsTable.id);
     },
 
     async get(id: number) {
       if (useFirestore && dbFirestore) {
+        if (cache.groups) {
+          const found = cache.groups.find((g: any) => g.id === id || String(g.id) === String(id));
+          if (found) return found;
+        }
         const snap = await dbFirestore.collection("groups").where("id", "==", id).limit(1).get();
         if (snap.empty) return null;
         return sanitizeFirestoreData(snap.docs[0].data());
@@ -302,6 +348,7 @@ export const dbService = {
           creadoEn: new Date(),
         };
         await docRef.set(docData, { merge: true });
+        cache.groups = null;
         return docData;
       }
       // Drizzle upsert
@@ -343,6 +390,7 @@ export const dbService = {
           }
         }
         if (count % 400 !== 0) await batch.commit();
+        cache.groups = null;
         return results;
       }
       // Drizzle fallback: sequential upserts
@@ -361,6 +409,7 @@ export const dbService = {
         if (!snap.exists) return null;
         const updatedData = { ...snap.data(), ...data };
         await docRef.update(data);
+        cache.groups = null;
         return sanitizeFirestoreData(updatedData);
       }
       const [item] = await db.update(groupsTable).set(data).where(eq(groupsTable.id, id)).returning();
@@ -370,6 +419,7 @@ export const dbService = {
     async delete(id: number) {
       if (useFirestore && dbFirestore) {
         await dbFirestore.collection("groups").doc(id.toString()).delete();
+        cache.groups = null;
         return true;
       }
       await db.delete(groupsTable).where(eq(groupsTable.id, id));
