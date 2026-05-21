@@ -45,29 +45,51 @@ async function useFirestoreAuthState(sessionId: number) {
       keys: {
         get: async (type: string, ids: string[]) => {
           const data: { [id: string]: any } = {};
+          if (!ids || ids.length === 0) return data;
+
+          // Map safe doc IDs back to their original Baileys keys
+          const safeIdMap = new Map<string, string>();
+          const safeIds: string[] = [];
+          for (const id of ids) {
+            const docId = makeSafeDocId(type, id);
+            safeIdMap.set(docId, id);
+            safeIds.push(docId);
+          }
+
+          // Chunk safeIds into batches of 30 for Firestore 'in' query limitations
+          const chunks: string[][] = [];
+          for (let i = 0; i < safeIds.length; i += 30) {
+            chunks.push(safeIds.slice(i, i + 30));
+          }
+
+          const adminImport: any = require("firebase-admin");
+          const FieldPath = adminImport.firestore.FieldPath;
+
           await Promise.all(
-            ids.map(async (id) => {
-              const docId = makeSafeDocId(type, id);
+            chunks.map(async (chunk) => {
               try {
-                const doc = await keysRef.doc(docId).get();
-                if (doc.exists) {
+                const snap = await keysRef.where(FieldPath.documentId(), "in", chunk).get();
+                for (const doc of snap.docs) {
                   const docData = doc.data();
                   if (docData) {
-                    let value: any;
-                    if (typeof docData.data === "string") {
-                      value = JSON.parse(docData.data, BufferJSON.reviver);
-                    } else {
-                      // Backward compatibility for raw objects in existing databases
-                      value = JSON.parse(JSON.stringify(docData), BufferJSON.reviver);
+                    const originalId = safeIdMap.get(doc.id);
+                    if (originalId) {
+                      let value: any;
+                      if (typeof docData.data === "string") {
+                        value = JSON.parse(docData.data, BufferJSON.reviver);
+                      } else {
+                        // Backward compatibility for raw objects in existing databases
+                        value = JSON.parse(JSON.stringify(docData), BufferJSON.reviver);
+                      }
+                      if (type === "app-state-sync-key" && value) {
+                        value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                      }
+                      data[originalId] = value;
                     }
-                    if (type === "app-state-sync-key" && value) {
-                      value = proto.Message.AppStateSyncKeyData.fromObject(value);
-                    }
-                    data[id] = value;
                   }
                 }
               } catch (e) {
-                logger.error({ err: e, type, id, docId }, "Error getting auth key from Firestore");
+                logger.error({ err: e, type, chunk }, "Error batch getting auth keys from Firestore");
               }
             })
           );
@@ -75,22 +97,32 @@ async function useFirestoreAuthState(sessionId: number) {
         },
         set: async (data: any) => {
           try {
-            const batch = dbFirestore!.batch();
+            let batch = dbFirestore!.batch();
+            let count = 0;
             for (const type of Object.keys(data)) {
               const typeData = data[type];
               for (const id of Object.keys(typeData)) {
                 const value = typeData[id];
                 const docId = makeSafeDocId(type, id);
                 const docRef = keysRef.doc(docId);
+                
                 if (value) {
                   const valueStr = JSON.stringify(value, BufferJSON.replacer);
                   batch.set(docRef, { data: valueStr });
                 } else {
                   batch.delete(docRef);
                 }
+                
+                count++;
+                if (count % 400 === 0) {
+                  await batch.commit();
+                  batch = dbFirestore!.batch();
+                }
               }
             }
-            await batch.commit();
+            if (count % 400 !== 0) {
+              await batch.commit();
+            }
           } catch (e) {
             logger.error({ err: e }, "Error setting auth keys in Firestore");
           }
@@ -183,45 +215,49 @@ export const whatsappManager = {
 
       // Handle connection updates
       sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        try {
+          const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
-          logger.info(`QR Code received for session ${sessionId}`);
-          this.qrCodes.set(sessionId, qr);
-          this.statuses.set(sessionId, "waiting_scan");
-        }
-
-        if (connection === "close") {
-          const shouldReconnect =
-            (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-          logger.warn(
-            `Connection closed for session ${sessionId}. Reason: ${lastDisconnect?.error}. Reconnecting: ${shouldReconnect}`
-          );
-
-          this.qrCodes.delete(sessionId);
-          this.statuses.set(sessionId, shouldReconnect ? "reconectando" : "desconectado");
-
-          if (shouldReconnect) {
-            this.connectSession(sessionId).catch(err => {
-              logger.error({ err, sessionId }, "Reconnection attempt failed");
-            });
-          } else {
-            logger.info(`Session ${sessionId} completely logged out. Cleaning up credentials.`);
-            this.clearSessionCredentials(sessionId).catch(err => {
-              logger.error({ err, sessionId }, "Failed to clear credentials on logout");
-            });
-            await dbService.whatsappSessions.update(sessionId, { estado: "desconectado" });
+          if (qr) {
+            logger.info(`QR Code received for session ${sessionId}`);
+            this.qrCodes.set(sessionId, qr);
+            this.statuses.set(sessionId, "waiting_scan");
           }
-        } else if (connection === "open") {
-          logger.info(`Connection established for session ${sessionId}!`);
-          this.qrCodes.delete(sessionId);
-          this.statuses.set(sessionId, "conectado");
-          const userJid = sock.user?.id;
-          await dbService.whatsappSessions.update(sessionId, {
-            estado: "conectado",
-            ultimaConexion: new Date(),
-            telefono: userJid?.split(":")[0] ?? "",
-          });
+
+          if (connection === "close") {
+            const shouldReconnect =
+              (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+            logger.warn(
+              `Connection closed for session ${sessionId}. Reason: ${lastDisconnect?.error}. Reconnecting: ${shouldReconnect}`
+            );
+
+            this.qrCodes.delete(sessionId);
+            this.statuses.set(sessionId, shouldReconnect ? "reconectando" : "desconectado");
+
+            if (shouldReconnect) {
+              this.connectSession(sessionId).catch(err => {
+                logger.error({ err, sessionId }, "Reconnection attempt failed");
+              });
+            } else {
+              logger.info(`Session ${sessionId} completely logged out. Cleaning up credentials.`);
+              this.clearSessionCredentials(sessionId).catch(err => {
+                logger.error({ err, sessionId }, "Failed to clear credentials on logout");
+              });
+              await dbService.whatsappSessions.update(sessionId, { estado: "desconectado" });
+            }
+          } else if (connection === "open") {
+            logger.info(`Connection established for session ${sessionId}!`);
+            this.qrCodes.delete(sessionId);
+            this.statuses.set(sessionId, "conectado");
+            const userJid = sock.user?.id;
+            await dbService.whatsappSessions.update(sessionId, {
+              estado: "conectado",
+              ultimaConexion: new Date(),
+              telefono: userJid?.split(":")[0] ?? "",
+            });
+          }
+        } catch (err) {
+          logger.error({ err, sessionId }, "Error inside connection.update handler");
         }
       });
 
