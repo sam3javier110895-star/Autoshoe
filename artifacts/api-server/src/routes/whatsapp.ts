@@ -168,44 +168,42 @@ router.post("/sessions/:id/sync-groups", async (req, res) => {
     const groupJids = Object.keys(participatingGroups);
     req.log.info(`Found ${groupJids.length} real groups for session ${id}`);
 
-    const inserted = [];
-    for (const jid of groupJids) {
+    // Build all group data objects first, then write in one batched operation
+    const groupsToUpsert = groupJids.map((jid) => {
       const g = participatingGroups[jid];
-      if (!g) continue;
+      const name = g?.subject || "Grupo sin nombre";
 
-      const name = g.subject || "Grupo sin nombre";
-      
-      // Auto-categorize groups based on their names
       let category = "clientes";
       const nameLower = name.toLowerCase();
       if (
-        nameLower.includes("proveedor") || 
-        nameLower.includes("prov") || 
-        nameLower.includes("fabrica") || 
-        nameLower.includes("distribuidor") || 
-        nameLower.includes("mayorista") || 
+        nameLower.includes("proveedor") ||
+        nameLower.includes("prov") ||
+        nameLower.includes("fabrica") ||
+        nameLower.includes("mayorista") ||
         nameLower.includes("zapateria")
       ) {
         category = "proveedores";
       } else if (
-        nameLower.includes("distribuidor") || 
+        nameLower.includes("distribuidor") ||
         nameLower.includes("dist")
       ) {
         category = "distribuidores";
       }
 
-      const upserted = await dbService.groups.upsert({
+      return {
         sessionId: id,
-        jid: jid,
+        jid,
         nombre: name,
         categoria: category,
-        participantes: g.participants?.length || 0,
+        participantes: g?.participants?.length || 0,
         mensajesDiarios: Math.floor(Math.random() * 15) + 1,
         activo: true,
         ultimaActividad: new Date(),
-      });
-      inserted.push(upserted);
-    }
+      };
+    });
+
+    // Single batched write — zero reads for Firestore
+    const inserted = await dbService.groups.bulkUpsert(groupsToUpsert);
 
     // Update session groups count
     await dbService.whatsappSessions.update(id, {

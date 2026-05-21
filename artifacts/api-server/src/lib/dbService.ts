@@ -275,7 +275,7 @@ export const dbService = {
   groups: {
     async list() {
       if (useFirestore && dbFirestore) {
-        const snap = await dbFirestore.collection("groups").orderBy("id").get();
+        const snap = await dbFirestore.collection("groups").orderBy("nombre").get();
         return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
       }
       return db.select().from(groupsTable).orderBy(groupsTable.id);
@@ -293,28 +293,16 @@ export const dbService = {
 
     async upsert(data: any) {
       if (useFirestore && dbFirestore) {
-        // Query if exists by jid & sessionId
-        const snap = await dbFirestore
-          .collection("groups")
-          .where("jid", "==", data.jid)
-          .where("sessionId", "==", data.sessionId)
-          .limit(1)
-          .get();
-
-        if (!snap.empty) {
-          const docId = snap.docs[0].id;
-          await dbFirestore.collection("groups").doc(docId).update(data);
-          return { ...snap.docs[0].data(), ...data };
-        } else {
-          const id = await getNextId("groups");
-          const docData = {
-            ...data,
-            id,
-            creadoEn: new Date(),
-          };
-          await dbFirestore.collection("groups").doc(id.toString()).set(docData);
-          return docData;
-        }
+        // Use JID as document ID — no read needed, pure upsert with merge
+        const safeDocId = data.jid.replace(/[/]/g, "__");
+        const docRef = dbFirestore.collection("groups").doc(safeDocId);
+        const docData = {
+          ...data,
+          id: data.id ?? safeDocId,
+          creadoEn: new Date(),
+        };
+        await docRef.set(docData, { merge: true });
+        return docData;
       }
       // Drizzle upsert
       const existing = await db
@@ -334,6 +322,36 @@ export const dbService = {
         const [inserted] = await db.insert(groupsTable).values(data).returning();
         return inserted;
       }
+    },
+
+    async bulkUpsert(groups: any[]) {
+      if (useFirestore && dbFirestore) {
+        // Write all groups in one batched operation — zero reads
+        let batch = dbFirestore.batch();
+        let count = 0;
+        const results: any[] = [];
+        for (const data of groups) {
+          const safeDocId = data.jid.replace(/[/]/g, "__");
+          const docRef = dbFirestore.collection("groups").doc(safeDocId);
+          const docData = { ...data, id: data.id ?? safeDocId, creadoEn: new Date() };
+          batch.set(docRef, docData, { merge: true });
+          results.push(docData);
+          count++;
+          if (count % 400 === 0) {
+            await batch.commit();
+            batch = dbFirestore.batch();
+          }
+        }
+        if (count % 400 !== 0) await batch.commit();
+        return results;
+      }
+      // Drizzle fallback: sequential upserts
+      const results: any[] = [];
+      for (const data of groups) {
+        const result = await this.upsert(data);
+        results.push(result);
+      }
+      return results;
     },
 
     async update(id: number, data: any) {
