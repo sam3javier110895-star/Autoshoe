@@ -11,6 +11,8 @@ import * as fs from "fs";
 import { logger } from "./logger";
 import { dbService } from "./dbService";
 import { dbFirestore, useFirestore } from "./firebase";
+import { db, whatsappAuthKeysTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 // Store multi-session sockets active in memory
 const activeSockets = new Map<number, any>();
@@ -38,6 +40,7 @@ async function useFirestoreAuthState(sessionId: number) {
     const credsJson = JSON.parse(JSON.stringify(creds, BufferJSON.replacer));
     await sessionRef.collection("auth").doc("creds").set(credsJson);
   };
+
 
   return {
     state: {
@@ -133,6 +136,145 @@ async function useFirestoreAuthState(sessionId: number) {
   };
 }
 
+async function usePostgresAuthState(sessionId: number) {
+  // Read creds
+  const credsRow = await db
+    .select()
+    .from(whatsappAuthKeysTable)
+    .where(
+      and(
+        eq(whatsappAuthKeysTable.sessionId, sessionId),
+        eq(whatsappAuthKeysTable.keyId, "creds")
+      )
+    )
+    .limit(1);
+
+  let creds: any = null;
+  if (credsRow.length > 0) {
+    creds = JSON.parse(credsRow[0].data, BufferJSON.reviver);
+  } else {
+    creds = initAuthCreds();
+  }
+
+  const saveCreds = async () => {
+    const credsJson = JSON.stringify(creds, BufferJSON.replacer);
+    const existing = await db
+      .select()
+      .from(whatsappAuthKeysTable)
+      .where(
+        and(
+          eq(whatsappAuthKeysTable.sessionId, sessionId),
+          eq(whatsappAuthKeysTable.keyId, "creds")
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(whatsappAuthKeysTable)
+        .set({ data: credsJson })
+        .where(
+          and(
+            eq(whatsappAuthKeysTable.sessionId, sessionId),
+            eq(whatsappAuthKeysTable.keyId, "creds")
+          )
+        );
+    } else {
+      await db.insert(whatsappAuthKeysTable).values({
+        sessionId,
+        keyId: "creds",
+        data: credsJson,
+      });
+    }
+  };
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: async (type: string, ids: string[]) => {
+          const data: { [id: string]: any } = {};
+          if (!ids || ids.length === 0) return data;
+
+          for (const id of ids) {
+            const keyId = makeSafeDocId(type, id);
+            const row = await db
+              .select()
+              .from(whatsappAuthKeysTable)
+              .where(
+                and(
+                  eq(whatsappAuthKeysTable.sessionId, sessionId),
+                  eq(whatsappAuthKeysTable.keyId, keyId)
+                )
+              )
+              .limit(1);
+
+            if (row.length > 0) {
+              let value = JSON.parse(row[0].data, BufferJSON.reviver);
+              if (type === "app-state-sync-key" && value) {
+                value = proto.Message.AppStateSyncKeyData.fromObject(value);
+              }
+              data[id] = value;
+            }
+          }
+          return data;
+        },
+        set: async (keysData: any) => {
+          for (const type of Object.keys(keysData)) {
+            const typeData = keysData[type];
+            for (const id of Object.keys(typeData)) {
+              const value = typeData[id];
+              const keyId = makeSafeDocId(type, id);
+
+              if (value) {
+                const valueStr = JSON.stringify(value, BufferJSON.replacer);
+                const existing = await db
+                  .select()
+                  .from(whatsappAuthKeysTable)
+                  .where(
+                    and(
+                      eq(whatsappAuthKeysTable.sessionId, sessionId),
+                      eq(whatsappAuthKeysTable.keyId, keyId)
+                    )
+                  )
+                  .limit(1);
+
+                if (existing.length > 0) {
+                  await db
+                    .update(whatsappAuthKeysTable)
+                    .set({ data: valueStr })
+                    .where(
+                      and(
+                        eq(whatsappAuthKeysTable.sessionId, sessionId),
+                        eq(whatsappAuthKeysTable.keyId, keyId)
+                      )
+                    );
+                } else {
+                  await db.insert(whatsappAuthKeysTable).values({
+                    sessionId,
+                    keyId,
+                    data: valueStr,
+                  });
+                }
+              } else {
+                await db
+                  .delete(whatsappAuthKeysTable)
+                  .where(
+                    and(
+                      eq(whatsappAuthKeysTable.sessionId, sessionId),
+                      eq(whatsappAuthKeysTable.keyId, keyId)
+                    )
+                  );
+              }
+            }
+          }
+        }
+      }
+    },
+    saveCreds
+  };
+}
+
 // In-memory queues to group photo batches for Phase 1 Flujos
 interface PhotoBatch {
   sessionId: number;
@@ -180,12 +322,8 @@ export const whatsappManager = {
         logger.info(`[connectSession] Session ${sessionId} loading authState from Firestore`);
         authState = await useFirestoreAuthState(sessionId);
       } else {
-        logger.info(`[connectSession] Session ${sessionId} loading authState from local storage`);
-        const sessionDir = path.join(process.cwd(), "sessions", `session_${sessionId}`);
-        if (!fs.existsSync(sessionDir)) {
-          fs.mkdirSync(sessionDir, { recursive: true });
-        }
-        authState = await useMultiFileAuthState(sessionDir);
+        logger.info(`[connectSession] Session ${sessionId} loading authState from PostgreSQL`);
+        authState = await usePostgresAuthState(sessionId);
       }
       const { state, saveCreds } = authState;
       let version: any = [6, 45, 0];

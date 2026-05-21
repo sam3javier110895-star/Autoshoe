@@ -9,10 +9,11 @@ const nestedSaPath = path.join(process.cwd(), "artifacts", "api-server", "fireba
 const hasSaFile = fs.existsSync(localSaPath) || fs.existsSync(nestedSaPath);
 
 const useFirestore = !!(
-  process.env.FIREBASE_CONFIG ||
+  (process.env.FIREBASE_CONFIG ||
   process.env.FIREBASE_SERVICE_ACCOUNT ||
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-  hasSaFile
+  hasSaFile) &&
+  process.env.DISABLE_FIRESTORE !== "true"
 );
 
 if (useFirestore) {

@@ -17,6 +17,14 @@ export const whatsappSessionsTable = pgTable("whatsapp_sessions", {
   ultimaConexion: timestamp("ultima_conexion"),
 });
 
+export const whatsappAuthKeysTable = pgTable("whatsapp_auth_keys", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull(),
+  keyId: text("key_id").notNull(),
+  data: text("data").notNull(), // JSON string of Baileys keys/creds
+});
+
 export const insertWhatsappSessionSchema = createInsertSchema(whatsappSessionsTable).omit({ id: true, creadoEn: true });
 export type InsertWhatsappSession = z.infer<typeof insertWhatsappSessionSchema>;
 export type WhatsappSession = typeof whatsappSessionsTable.$inferSelect;
+
