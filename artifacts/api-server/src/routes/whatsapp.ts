@@ -215,9 +215,38 @@ router.post("/sessions/:id/sync-groups", async (req, res) => {
     });
 
     res.json({ success: true, gruposSincronizados: inserted.length, grupos: inserted.map((g: any) => g.nombre) });
-  } catch (err) {
+  } catch (err: any) {
     req.log.error({ err }, "Error syncing groups");
-    res.status(500).json({ error: "Error interno del servidor" });
+    res.status(500).json({ error: `Error al sincronizar grupos: ${err.message || err}` });
+  }
+});
+
+router.get("/sessions/:id/debug", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const session = await dbService.whatsappSessions.get(id);
+    const sock = whatsappManager.getActiveSocket(id);
+    const status = whatsappManager.statuses.get(id) ?? "desconectado";
+    const qr = whatsappManager.qrCodes.get(id) ?? null;
+    
+    res.json({
+      sessionId: id,
+      databaseState: session ? {
+        nombre: session.nombre,
+        estado: session.estado,
+        telefono: session.telefono,
+        gruposSincronizados: session.gruposSincronizados,
+      } : null,
+      memoryState: {
+        hasSocket: !!sock,
+        wsReadyState: sock?.ws?.readyState ?? null,
+        connectionState: sock?.user ? "open" : "connecting/closed",
+        inMemoryStatus: status,
+        hasQr: !!qr,
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
