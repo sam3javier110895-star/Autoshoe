@@ -44,25 +44,65 @@ async function getNextId(collectionName: string): Promise<number> {
   return (maxDoc.id || 0) + 1;
 }
 
-// Memory cache to prevent Firestore quota exhaustion and improve performance
+// Resilient cache: survives Firestore quota exhaustion by returning cached/empty data
 const cache = {
   flujos: null as any[] | null,
   automations: null as any[] | null,
   whatsappSessions: new Map<number, any>(),
   whatsappSessionsList: null as any[] | null,
   groups: null as any[] | null,
+  contacts: null as any[] | null,
+  messages: null as any[] | null,
+  responses: null as any[] | null,
 };
+
+// Backoff: when quota is exhausted, stop hitting Firestore for this many ms
+let firestoreBackoffUntil = 0;
+const BACKOFF_MS = 60_000; // 60 seconds
+
+function isQuotaExhausted(): boolean {
+  return Date.now() < firestoreBackoffUntil;
+}
+
+function markQuotaExhausted(): void {
+  firestoreBackoffUntil = Date.now() + BACKOFF_MS;
+  logger.warn(`Firestore quota exhausted — backing off for ${BACKOFF_MS / 1000}s`);
+}
+
+function isResourceExhaustedError(err: any): boolean {
+  return err?.code === 8 || err?.message?.includes("RESOURCE_EXHAUSTED");
+}
+
+/** Safe Firestore query wrapper: returns fallback on quota errors instead of throwing */
+async function safeFirestoreQuery<T>(
+  queryFn: () => Promise<T>,
+  fallback: T,
+  cacheKey?: string
+): Promise<T> {
+  if (isQuotaExhausted()) return fallback;
+  try {
+    return await queryFn();
+  } catch (err: any) {
+    if (isResourceExhaustedError(err)) {
+      markQuotaExhausted();
+      return fallback;
+    }
+    throw err; // re-throw non-quota errors
+  }
+}
 
 export const dbService = {
   flujos: {
     async list() {
       if (useFirestore && dbFirestore) {
         if (cache.flujos) return cache.flujos;
-        const snap = await dbFirestore.collection("flujos").orderBy("id").get();
-        cache.flujos = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
-        return cache.flujos;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("flujos").orderBy("id").get();
+          return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        }, []);
+        if (result.length > 0) cache.flujos = result;
+        return result;
       }
-      // Drizzle fallback
       return db.select().from(flujosAgenteTable).orderBy(flujosAgenteTable.id);
     },
 
@@ -153,9 +193,12 @@ export const dbService = {
     async list() {
       if (useFirestore && dbFirestore) {
         if (cache.automations) return cache.automations;
-        const snap = await dbFirestore.collection("automations").orderBy("id").get();
-        cache.automations = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
-        return cache.automations;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("automations").orderBy("id").get();
+          return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        }, []);
+        if (result.length > 0) cache.automations = result;
+        return result;
       }
       return db.select().from(automationsTable).orderBy(automationsTable.id);
     },
@@ -247,9 +290,12 @@ export const dbService = {
     async list() {
       if (useFirestore && dbFirestore) {
         if (cache.whatsappSessionsList) return cache.whatsappSessionsList;
-        const snap = await dbFirestore.collection("whatsapp_sessions").orderBy("id").get();
-        cache.whatsappSessionsList = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
-        return cache.whatsappSessionsList;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("whatsapp_sessions").orderBy("id").get();
+          return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        }, []);
+        if (result.length > 0) cache.whatsappSessionsList = result;
+        return result;
       }
       return db.select().from(whatsappSessionsTable).orderBy(whatsappSessionsTable.id);
     },
@@ -258,10 +304,12 @@ export const dbService = {
       if (useFirestore && dbFirestore) {
         const cached = cache.whatsappSessions.get(id);
         if (cached) return cached;
-        const snap = await dbFirestore.collection("whatsapp_sessions").where("id", "==", id).limit(1).get();
-        if (snap.empty) return null;
-        const session = sanitizeFirestoreData(snap.docs[0].data());
-        cache.whatsappSessions.set(id, session);
+        const session = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("whatsapp_sessions").where("id", "==", id).limit(1).get();
+          if (snap.empty) return null;
+          return sanitizeFirestoreData(snap.docs[0].data());
+        }, null);
+        if (session) cache.whatsappSessions.set(id, session);
         return session;
       }
       const [item] = await db.select().from(whatsappSessionsTable).where(eq(whatsappSessionsTable.id, id));
@@ -316,9 +364,12 @@ export const dbService = {
     async list() {
       if (useFirestore && dbFirestore) {
         if (cache.groups) return cache.groups;
-        const snap = await dbFirestore.collection("groups").orderBy("nombre").get();
-        cache.groups = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
-        return cache.groups;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("groups").orderBy("nombre").get();
+          return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        }, []);
+        if (result.length > 0) cache.groups = result;
+        return result;
       }
       return db.select().from(groupsTable).orderBy(groupsTable.id);
     },
@@ -430,8 +481,13 @@ export const dbService = {
   contacts: {
     async list() {
       if (useFirestore && dbFirestore) {
-        const snap = await dbFirestore.collection("contacts").orderBy("id").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        if (cache.contacts) return cache.contacts;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("contacts").orderBy("id").get();
+          cache.contacts = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+          return cache.contacts;
+        }, []);
+        return result;
       }
       return db.select().from(contactsTable).orderBy(contactsTable.id);
     },
@@ -480,8 +536,13 @@ export const dbService = {
   messages: {
     async list() {
       if (useFirestore && dbFirestore) {
-        const snap = await dbFirestore.collection("forwarded_messages").orderBy("id", "desc").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        if (cache.messages) return cache.messages;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("forwarded_messages").orderBy("id", "desc").get();
+          cache.messages = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+          return cache.messages;
+        }, []);
+        return result;
       }
       return db.select().from(forwardedMessagesTable).orderBy(sql`${forwardedMessagesTable.id} DESC`);
     },
@@ -507,8 +568,13 @@ export const dbService = {
   responses: {
     async list() {
       if (useFirestore && dbFirestore) {
-        const snap = await dbFirestore.collection("shoe_responses").orderBy("id", "desc").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        if (cache.responses) return cache.responses;
+        const result = await safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("shoe_responses").orderBy("id", "desc").get();
+          cache.responses = snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+          return cache.responses;
+        }, []);
+        return result;
       }
       return db.select().from(shoeResponsesTable).orderBy(sql`${shoeResponsesTable.id} DESC`);
     },
@@ -547,16 +613,20 @@ export const dbService = {
   consultas: {
     async listActivas() {
       if (useFirestore && dbFirestore) {
-        const snap = await dbFirestore.collection("consultas_activas").where("estado", "==", "activa").get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        return safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("consultas_activas").where("estado", "==", "activa").get();
+          return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        }, []);
       }
       return db.select().from(consultasActivasTable).where(sql`${consultasActivasTable.estado} = 'activa'` as any).orderBy(sql`${consultasActivasTable.creadaEn} DESC` as any);
     },
 
     async respuestasForConsulta(consultaId: number) {
       if (useFirestore && dbFirestore) {
-        const snap = await dbFirestore.collection("respuestas_consulta").where("consultaId", "==", consultaId).get();
-        return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        return safeFirestoreQuery(async () => {
+          const snap = await dbFirestore!.collection("respuestas_consulta").where("consultaId", "==", consultaId).get();
+          return snap.docs.map(doc => sanitizeFirestoreData(doc.data()));
+        }, []);
       }
       return db.select().from(respuestasConsultaTable).where(sql`${respuestasConsultaTable.consultaId} = ${consultaId}` as any);
     }
